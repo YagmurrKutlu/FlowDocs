@@ -1,0 +1,57 @@
+:root {
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  background-color: #101113;
+}
+
+.flowdocs-text-bold {
+  font-weight: 700;
+}
+
+.flowdocs-text-italic {
+  font-style: italic;
+}
+
+.flowdocs-text-underline {
+  text-decoration: underline;
+}
+
+.flowdocs-heading-h1 {
+  font-size: 1.8rem;
+  line-height: 1.25;
+  font-weight: 700;
+  margin: 0.4em 0;
+}
+
+.flowdocs-heading-h2 {
+  font-size: 1.4rem;
+  line-height: 1.35;
+  font-weight: 650;
+  margin: 0.35em 0;
+}
+
+.flowdocs-list-ul,
+.flowdocs-list-ol {
+  margin: 0.4em 0 0.4em 1.2em;
+  padding: 0;
+}
+
+.flowdocs-list-item {
+  margin: 0.15em 0;
+}

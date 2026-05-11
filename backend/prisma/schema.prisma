@@ -1,0 +1,213 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum DocumentRole {
+  OWNER
+  EDITOR
+  COMMENTER
+  VIEWER
+}
+
+enum ActivityType {
+  WORKSPACE_CREATED
+  WORKSPACE_UPDATED
+  DOCUMENT_CREATED
+  DOCUMENT_UPDATED
+  DOCUMENT_SHARED
+  USER_INVITED
+  MEDIA_UPLOADED
+}
+
+model User {
+  id                  String             @id @default(cuid())
+  email               String             @unique
+  fullName            String
+  passwordHash        String
+  avatarUrl           String?
+  isActive            Boolean            @default(true)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  ownedWorkspaces     Workspace[]        @relation("WorkspaceOwner")
+  workspaceMembers    WorkspaceMember[]
+  createdDocuments    Document[]         @relation("DocumentCreator")
+  lastEditedDocuments Document[]         @relation("DocumentLastEditor")
+  documentMembers     DocumentMember[]
+  documentUpdates     DocumentUpdate[]   @relation("DocumentUpdateAuthor")
+  mediaFiles          MediaFile[]
+  activities          ActivityLog[]
+  documentSnapshots   DocumentSnapshot[] @relation("SnapshotAuthor")
+  authoredDocumentComments DocumentComment[] @relation("DocumentCommentAuthor")
+  resolvedDocumentComments DocumentComment[] @relation("DocumentCommentResolver")
+}
+
+model Workspace {
+  id          String            @id @default(cuid())
+  name        String
+  slug        String            @unique
+  description String?
+  ownerId     String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  owner       User              @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members     WorkspaceMember[]
+  documents   Document[]
+  mediaFiles  MediaFile[]
+  activities  ActivityLog[]
+}
+
+model WorkspaceMember {
+  id          String        @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        WorkspaceRole @default(VIEWER)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+model Document {
+  id             String             @id @default(cuid())
+  workspaceId    String
+  title          String
+  slug           String
+  previewContent Json?
+  editorStateJson Json?
+  currentVersion Int                @default(0)
+  createdById    String
+  lastEditedById String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  workspace      Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy      User               @relation("DocumentCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  lastEditedBy   User?              @relation("DocumentLastEditor", fields: [lastEditedById], references: [id], onDelete: SetNull)
+  members        DocumentMember[]
+  snapshots      DocumentSnapshot[]
+  updates        DocumentUpdate[]
+  mediaFiles     MediaFile[]
+  activities     ActivityLog[]
+  comments       DocumentComment[]
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId])
+  @@index([createdById])
+  @@index([lastEditedById])
+}
+
+model DocumentComment {
+  id             String    @id @default(cuid())
+  documentId     String
+  authorId       String
+  selectedText   String?
+  anchorOffset   Int?
+  focusOffset    Int?
+  body           String
+  isResolved     Boolean   @default(false)
+  resolvedAt     DateTime?
+  resolvedById   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  document       Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  author         User      @relation("DocumentCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  resolvedBy     User?     @relation("DocumentCommentResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([documentId])
+  @@index([authorId])
+}
+
+model DocumentMember {
+  id         String       @id @default(cuid())
+  documentId String
+  userId     String
+  role       DocumentRole @default(VIEWER)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  document   Document     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, userId])
+  @@index([userId])
+}
+
+model DocumentSnapshot {
+  id             String   @id @default(cuid())
+  documentId     String
+  version        Int
+  snapshotBinary Bytes
+  stateVector    Bytes?
+  capturedById   String
+  createdAt      DateTime @default(now())
+  document       Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  author         User     @relation("SnapshotAuthor", fields: [capturedById], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, version])
+  @@index([capturedById])
+}
+
+model DocumentUpdate {
+  id             String   @id @default(cuid())
+  documentId     String
+  version        Int
+  updateBinary   Bytes
+  sourceClientId String?
+  createdById    String?
+  createdAt      DateTime @default(now())
+  document       Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  author         User?    @relation("DocumentUpdateAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([documentId, version])
+  @@index([documentId, version])
+  @@index([createdById])
+}
+
+model MediaFile {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  documentId   String?
+  uploadedById String
+  objectKey    String    @unique
+  fileName     String
+  mimeType     String
+  size         Int
+  bucket       String
+  createdAt    DateTime  @default(now())
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  document     Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  uploadedBy   User      @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([documentId])
+}
+
+model ActivityLog {
+  id          String       @id @default(cuid())
+  workspaceId String
+  documentId  String?
+  actorId     String
+  type        ActivityType
+  metadata    Json?
+  createdAt   DateTime     @default(now())
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  document    Document?    @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  actor       User         @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@index([documentId])
+  @@index([actorId])
+}

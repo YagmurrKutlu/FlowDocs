@@ -1,0 +1,38 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: flowdocs-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-flowdocs}
+      POSTGRES_USER: ${POSTGRES_USER:-flowdocs}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-flowdocs}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - flowdocs_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-flowdocs} -d ${POSTGRES_DB:-flowdocs}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: flowdocs-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-flowdocs}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-flowdocs-secret}
+    command: server /data --console-address ':9001'
+    ports:
+      - '${MINIO_PORT:-9000}:9000'
+      - '${MINIO_CONSOLE_PORT:-9001}:9001'
+    volumes:
+      - flowdocs_minio_data:/data
+
+volumes:
+  flowdocs_postgres_data:
+  flowdocs_minio_data:
