@@ -1,0 +1,111 @@
+.link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  height: 100%;
+}
+
+.card {
+  position: relative;
+  height: 100%;
+  background: var(--fd-surface-card);
+  border: 1px solid var(--fd-border-subtle);
+  border-radius: 14px;
+  overflow: hidden;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(96, 165, 250, 0.35);
+  box-shadow:
+    0 0 0 1px rgba(59, 130, 246, 0.2),
+    0 12px 28px rgba(0, 0, 0, 0.45);
+}
+
+.accent {
+  height: 3px;
+  width: 100%;
+}
+
+.accentBlue {
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+}
+
+.accentGreen {
+  background: linear-gradient(90deg, #22c55e, #4ade80);
+}
+
+.accentOrange {
+  background: linear-gradient(90deg, #ea580c, #fb923c);
+}
+
+.accentViolet {
+  background: linear-gradient(90deg, #7c3aed, #a78bfa);
+}
+
+.accentRed {
+  background: linear-gradient(90deg, #dc2626, #f87171);
+}
+
+.body {
+  padding: 14px 16px 16px;
+}
+
+.emojiRow {
+  margin-bottom: 8px;
+}
+
+.emoji {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.docTitle {
+  color: #fff;
+}
+
+.updated {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--fd-border-subtle);
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dotLive {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 8px rgba(74, 222, 128, 0.55);
+}
+
+.dotOff {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.statusLive {
+  color: rgba(167, 243, 208, 0.95);
+}
+
+.statusOff {
+  color: var(--fd-text-muted);
+}

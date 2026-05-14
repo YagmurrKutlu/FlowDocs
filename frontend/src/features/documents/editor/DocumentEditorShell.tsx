@@ -1418,9 +1418,9 @@ export function DocumentEditorShell({
         ref={editorContainerRef}
         style={{
           minHeight: 320,
-          border: '1px solid var(--mantine-color-dark-4)',
+          border: '1px solid var(--fd-border-subtle)',
           borderRadius: 'var(--mantine-radius-md)',
-          backgroundColor: 'var(--mantine-color-dark-7)',
+          backgroundColor: 'var(--fd-surface-card)',
           position: 'relative',
           overflow: 'hidden',
         }}
@@ -1435,8 +1435,8 @@ export function DocumentEditorShell({
                 position: 'sticky',
                 top: 0,
                 zIndex: 20,
-                borderBottom: '1px solid var(--mantine-color-dark-4)',
-                backgroundColor: 'var(--mantine-color-dark-6)',
+                borderBottom: '1px solid var(--fd-border-subtle)',
+                backgroundColor: 'var(--fd-surface-card-elevated)',
                 padding: '10px 12px',
               }}
             >

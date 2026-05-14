@@ -1,37 +1,48 @@
 import { AppShell } from '@mantine/core';
-import { Outlet } from 'react-router-dom';
-import { Sidebar } from '../components/navigation/Sidebar';
+import { Outlet, useLocation } from 'react-router-dom';
+import { AppSidebar } from '../components/app-sidebar/AppSidebar';
+import { useSidebarCollapsed } from '../components/app-sidebar/hooks/useSidebarCollapsed';
 import { Topbar } from '../components/navigation/Topbar';
 
+const EXPANDED_NAV = 265;
+const COLLAPSED_NAV = 78;
+
 export function GlobalLayout() {
+  const { collapsed, toggle } = useSidebarCollapsed();
+  const location = useLocation();
+  const isDashboardHome = location.pathname === '/dashboard';
+
   return (
     <AppShell
       padding={0}
-      navbar={{ width: 270, breakpoint: 0 }}
-      header={{ height: 74 }}
+      navbar={{ width: collapsed ? COLLAPSED_NAV : EXPANDED_NAV, breakpoint: 0 }}
+      header={isDashboardHome ? { height: 0 } : { height: 72 }}
+      transitionDuration={220}
+      transitionTimingFunction="ease"
       styles={{
         main: {
-          background:
-            'linear-gradient(180deg, rgba(16,17,19,1) 0%, rgba(21,23,28,1) 100%)',
+          background: 'var(--fd-surface-app)',
           minHeight: '100vh',
         },
         navbar: {
-          backgroundColor: '#121317',
-          borderRight: '1px solid #25262b',
+          backgroundColor: 'var(--fd-surface-sidebar)',
+          borderRight: '1px solid var(--fd-border-subtle)',
         },
         header: {
-          backgroundColor: '#121317',
-          borderBottom: '1px solid #25262b',
+          backgroundColor: 'var(--fd-surface-app)',
+          borderBottom: '1px solid var(--fd-border-subtle)',
         },
       }}
     >
       <AppShell.Navbar>
-        <Sidebar />
+        <AppSidebar collapsed={collapsed} onToggleCollapse={toggle} />
       </AppShell.Navbar>
 
-      <AppShell.Header>
-        <Topbar />
-      </AppShell.Header>
+      {!isDashboardHome ? (
+        <AppShell.Header>
+          <Topbar />
+        </AppShell.Header>
+      ) : null}
 
       <AppShell.Main>
         <Outlet />

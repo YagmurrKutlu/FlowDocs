@@ -1,0 +1,166 @@
+.page {
+  min-height: 100%;
+  background: var(--fd-surface-app);
+  color: #f4f4f5;
+  padding: 0 24px 32px;
+}
+
+.topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  min-height: 70px;
+  padding: 18px 0 20px;
+  border-bottom: 1px solid var(--fd-border-subtle);
+}
+
+.titleBlock {
+  flex: 1;
+  min-width: 200px;
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.pageSubtitle {
+  margin: 6px 0 0;
+  font-size: 0.875rem;
+  color: var(--fd-text-muted);
+}
+
+.topbarActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.search {
+  width: 220px;
+  max-width: 100%;
+}
+
+.searchControl {
+  background: var(--fd-surface-card) !important;
+  border: 1px solid var(--fd-border-subtle) !important;
+  border-radius: 12px !important;
+  color: #f4f4f5 !important;
+  height: 40px !important;
+  font-size: 0.875rem !important;
+}
+
+.searchControl::placeholder {
+  color: var(--fd-text-muted) !important;
+}
+
+.searchControl:focus {
+  border-color: rgba(59, 130, 246, 0.55) !important;
+}
+
+.newDocBtn {
+  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+  border: none;
+  border-radius: 12px;
+  font-weight: 600;
+  height: 40px;
+  padding: 0 18px;
+  color: #fff;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset;
+}
+
+.newDocBtn:hover {
+  filter: brightness(1.06);
+}
+
+.statsRow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 22px;
+}
+
+@media (max-width: 900px) {
+  .statsRow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .statsRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+.docGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 28px;
+}
+
+@media (max-width: 1100px) {
+  .docGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .docGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.teamSection {
+  margin-top: 28px;
+}
+
+.newDocCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  padding: 24px;
+  background: transparent;
+  border: 2px dashed var(--fd-border-subtle);
+  border-radius: 14px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.55);
+  transition:
+    border-color 180ms ease,
+    color 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.newDocCard:hover {
+  border-color: rgba(59, 130, 246, 0.45);
+  color: rgba(191, 219, 254, 0.95);
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.12);
+}
+
+.newDocPlus {
+  font-size: 2rem;
+  font-weight: 300;
+  line-height: 1;
+  margin-bottom: 10px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.newDocCard:hover .newDocPlus {
+  color: #60a5fa;
+}
+
+.newDocLabel {
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+}

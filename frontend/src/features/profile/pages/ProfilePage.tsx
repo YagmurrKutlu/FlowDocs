@@ -8,9 +8,11 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
+import { IconLogout } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -35,8 +37,10 @@ const profileSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileSchema>;
 
 export function ProfilePage() {
+  const navigate = useNavigate();
   const setUser = useAuthStore((state) => state.setUser);
   const user = useAuthStore((state) => state.user);
+  const clearAuth = useAuthStore((state) => state.clearAuth);
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
@@ -149,6 +153,18 @@ export function ProfilePage() {
                     w={{ base: '100%', sm: 'auto' }}
                   >
                     Save changes
+                  </Button>
+                  <Button
+                    variant="light"
+                    color="red"
+                    leftSection={<IconLogout size={16} />}
+                    w={{ base: '100%', sm: 'auto' }}
+                    onClick={() => {
+                      clearAuth();
+                      navigate('/login', { replace: true });
+                    }}
+                  >
+                    Sign out
                   </Button>
                 </Stack>
               </form>

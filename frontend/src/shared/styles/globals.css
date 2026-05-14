@@ -1,3 +1,5 @@
+@import './flowdocs-tokens.css';
+
 :root {
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -17,7 +19,7 @@ body,
   width: 100%;
   min-height: 100%;
   margin: 0;
-  background-color: #101113;
+  background-color: var(--fd-surface-app);
 }
 
 .flowdocs-text-bold {

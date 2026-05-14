@@ -1,0 +1,26 @@
+.card {
+  background: var(--fd-surface-card);
+  border: 1px solid var(--fd-border-subtle);
+  border-radius: 14px;
+  padding: 18px 20px;
+}
+
+.label {
+  color: var(--fd-text-muted);
+}
+
+.valueBlue {
+  color: #60a5fa;
+}
+
+.valueGreen {
+  color: #4ade80;
+}
+
+.valueOrange {
+  color: #fb923c;
+}
+
+.valueWhite {
+  color: #f4f4f5;
+}

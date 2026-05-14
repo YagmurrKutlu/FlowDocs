@@ -3,16 +3,16 @@ import { useLocation } from 'react-router-dom';
 
 const pageTitles: Record<string, { title: string; subtitle: string }> = {
   '/dashboard': {
-    title: 'Workspace Overview',
-    subtitle: 'Track your workspaces and account status.',
+    title: 'Dashboard',
+    subtitle: 'Tüm dokümanlarınız',
   },
   '/documents': {
-    title: 'Documents',
-    subtitle: 'Document management will expand in the next phase.',
+    title: 'Dokümanlar',
+    subtitle: 'Erişebildiğiniz tüm dokümanlar.',
   },
   '/profile': {
-    title: 'Profile',
-    subtitle: 'Manage your personal account settings.',
+    title: 'Profil',
+    subtitle: 'Hesap ayarlarınız.',
   },
 };
 
@@ -23,18 +23,18 @@ export function Topbar() {
   let page =
     pageTitles[path] ?? {
       title: 'FlowDocs',
-      subtitle: 'Collaborative workspace foundation.',
+      subtitle: 'Ortak çalışma alanı.',
     };
 
   if (path.startsWith('/documents/') && path !== '/documents') {
     page = {
-      title: 'Document',
-      subtitle: 'Document details, members, and metadata.',
+      title: 'Doküman',
+      subtitle: 'Doküman detayı ve düzenleme.',
     };
   }
 
   return (
-    <Group justify="space-between" px="lg" py="md">
+    <Group justify="space-between" px="lg" py="md" h="100%" align="center">
       <div>
         <Title order={3}>{page.title}</Title>
         <Text c="dimmed" size="sm">
@@ -42,8 +42,8 @@ export function Topbar() {
         </Text>
       </div>
 
-      <Badge color="violet" variant="light">
-        Day 2 foundation
+      <Badge color="blue" variant="light">
+        FlowDocs
       </Badge>
     </Group>
   );
