@@ -6,7 +6,20 @@ import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
 import { ListPlugin } from '@lexical/react/LexicalListPlugin';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 import type { InitialConfigType } from '@lexical/react/LexicalComposer';
-import { Alert, Badge, Box, Button, Group, Stack, Text } from '@mantine/core';
+import {
+  Alert,
+  Avatar,
+  Badge,
+  Box,
+  Button,
+  Group,
+  Indicator,
+  ScrollArea,
+  Select,
+  Stack,
+  Tabs,
+  Text,
+} from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useQueryClient } from '@tanstack/react-query';
 import { $createHeadingNode, $isHeadingNode, HeadingNode } from '@lexical/rich-text';
@@ -35,7 +48,15 @@ import {
   type RangeSelection,
 } from 'lexical';
 import { io, type Socket } from 'socket.io-client';
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type ReactNode,
+} from 'react';
 import * as Y from 'yjs';
 import { getApiErrorMessage } from '../../../shared/api/errors';
 import { useAuthStore } from '../../../store/auth.store';
@@ -53,6 +74,18 @@ import { ImageClipboardPlugin } from './ImageClipboardPlugin';
 import { ImageDragDropPlugin } from './ImageDragDropPlugin';
 import { $createImageNode, $selectImageNodeIfPresent, ImageNode } from './nodes/ImageNode';
 import { getUserColor } from './user-colors';
+import { presenceDotColor, presenceGradientCss } from './documentPresenceGradients';
+import editorShell from './DocumentEditorShell.module.css';
+import { PresenceActivityFeed } from './PresenceActivityFeed';
+import type { DocumentEditorShellPresenceActivity } from './presenceActivityUtils';
+export type { DocumentEditorShellPresenceActivity } from './presenceActivityUtils';
+
+function initialsFromName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+  return `${parts[0]![0] ?? ''}${parts[1]![0] ?? ''}`.toUpperCase();
+}
 
 type PersistStatus = 'idle' | 'saving' | 'saved' | 'error';
 type ToolbarBlockType = 'paragraph' | 'h1' | 'h2' | 'ul' | 'ol';
@@ -60,11 +93,13 @@ const LOAD_ORIGIN = 'load';
 const EDITOR_ORIGIN = 'editor';
 const REMOTE_ORIGIN = 'remote';
 const SYNC_FROM_YJS_TAG = 'sync-from-yjs';
+
 const EDITOR_THEME = {
   text: {
     bold: 'flowdocs-text-bold',
     italic: 'flowdocs-text-italic',
     underline: 'flowdocs-text-underline',
+    strikethrough: 'flowdocs-text-strikethrough',
   },
   heading: {
     h1: 'flowdocs-heading-h1',
@@ -92,6 +127,17 @@ interface RemoteCursor {
   updatedAt: string;
 }
 
+const PRESENCE_STATUS_ACTIVE = ['Düzenliyor…', 'Okuyor', 'Yazıyor…'] as const;
+
+function cursorHintFromRemote(userId: string, cursors: RemoteCursor[]): string | null {
+  const c = cursors.find((x) => x.userId === userId);
+  if (!c) return null;
+  const o = Math.max(0, Math.floor(c.focusOffset));
+  const line = Math.max(1, Math.floor(o / 70) + 1);
+  const col = Math.max(1, (o % 70) + 1);
+  return `↳ Satır ${line}, Sütun ${col}`;
+}
+
 interface DocumentPresenceEvent {
   documentId: string;
   activeUsers: ActiveUser[];
@@ -100,6 +146,12 @@ interface DocumentPresenceEvent {
 interface DocumentCursorEvent {
   documentId: string;
   cursors: RemoteCursor[];
+}
+
+export interface DocumentEditorShellMemberAvatar {
+  userId: string;
+  fullName: string;
+  avatarUrl?: string | null;
 }
 
 interface DocumentUpdateEvent {
@@ -544,24 +596,25 @@ interface ToolbarButtonProps {
 
 function ToolbarButton({ label, active, disabled, onClick }: ToolbarButtonProps) {
   return (
-    <Button
-      type="button"
-      size="compact-sm"
-      variant={active ? 'light' : 'subtle'}
-      disabled={disabled}
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={onClick}
-      styles={{
-        root: {
-          fontWeight: active ? 600 : 500,
-          border: active
-            ? '1px solid var(--mantine-primary-color-filled)'
-            : '1px solid transparent',
-        },
-      }}
-    >
-      {label}
-    </Button>
+    <span className={editorShell.toolbarBtn}>
+      <Button
+        type="button"
+        size="compact-xs"
+        variant={active ? 'light' : 'subtle'}
+        disabled={disabled}
+        data-flowdocs-toolbar-active={active ? '' : undefined}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onClick}
+        styles={{
+          root: {
+            fontWeight: active ? 600 : 500,
+            border: '1px solid transparent',
+          },
+        }}
+      >
+        {label}
+      </Button>
+    </span>
   );
 }
 
@@ -569,17 +622,20 @@ interface EditorToolbarPluginProps {
   disabled: boolean;
   isUploadingImage: boolean;
   onUploadImage: (file: File) => Promise<{ url: string; altText: string } | null>;
+  trailing?: ReactNode;
 }
 
 function EditorToolbarPlugin({
   disabled,
   isUploadingImage,
   onUploadImage,
+  trailing,
 }: EditorToolbarPluginProps) {
   const [editor] = useLexicalComposerContext();
   const [isBold, setIsBold] = useState(false);
   const [isItalic, setIsItalic] = useState(false);
   const [isUnderline, setIsUnderline] = useState(false);
+  const [isStrikethrough, setIsStrikethrough] = useState(false);
   const [blockType, setBlockType] = useState<ToolbarBlockType>('paragraph');
   const lastSelectionRef = useRef<RangeSelection | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -595,6 +651,7 @@ function EditorToolbarPlugin({
           setIsBold(selection.hasFormat('bold'));
           setIsItalic(selection.hasFormat('italic'));
           setIsUnderline(selection.hasFormat('underline'));
+          setIsStrikethrough(selection.hasFormat('strikethrough'));
 
           const anchorNode = selection.anchor.getNode();
           const topLevel = anchorNode.getTopLevelElementOrThrow();
@@ -631,7 +688,7 @@ function EditorToolbarPlugin({
     });
   };
 
-  const formatText = (format: 'bold' | 'italic' | 'underline') => {
+  const formatText = (format: 'bold' | 'italic' | 'underline' | 'strikethrough') => {
     withSelection(() => {
       editor.dispatchCommand(FORMAT_TEXT_COMMAND, format);
     });
@@ -663,9 +720,36 @@ function EditorToolbarPlugin({
       if (selection.hasFormat('bold')) editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'bold');
       if (selection.hasFormat('italic')) editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'italic');
       if (selection.hasFormat('underline')) editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'underline');
+      if (selection.hasFormat('strikethrough')) {
+        editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'strikethrough');
+      }
       $setBlocksType(selection, () => $createParagraphNode());
       editor.dispatchCommand(REMOVE_LIST_COMMAND, undefined);
     });
+  };
+
+  const handleBlockSelect = (value: string | null) => {
+    if (!value) return;
+    const next = value as ToolbarBlockType;
+    if (next === 'paragraph') {
+      applyParagraph();
+      return;
+    }
+    if (next === 'h1') {
+      applyHeading('h1');
+      return;
+    }
+    if (next === 'h2') {
+      applyHeading('h2');
+      return;
+    }
+    if (next === 'ul') {
+      applyList('ul');
+      return;
+    }
+    if (next === 'ol') {
+      applyList('ol');
+    }
   };
 
   const insertImage = (url: string, altText: string) => {
@@ -718,48 +802,73 @@ function EditorToolbarPlugin({
   };
 
   return (
-    <Group gap={6} wrap="wrap">
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/png,image/jpeg,image/webp"
-        style={{ display: 'none' }}
-        onChange={(e) => {
-          void handleImageFileSelected(e);
-        }}
-      />
-      <ToolbarButton label="Bold" active={isBold} disabled={disabled} onClick={() => formatText('bold')} />
-      <ToolbarButton label="Italic" active={isItalic} disabled={disabled} onClick={() => formatText('italic')} />
-      <ToolbarButton
-        label="Underline"
-        active={isUnderline}
-        disabled={disabled}
-        onClick={() => formatText('underline')}
-      />
-      <ToolbarButton label="H1" active={blockType === 'h1'} disabled={disabled} onClick={() => applyHeading('h1')} />
-      <ToolbarButton label="H2" active={blockType === 'h2'} disabled={disabled} onClick={() => applyHeading('h2')} />
-      <ToolbarButton
-        label="Bullet list"
-        active={blockType === 'ul'}
-        disabled={disabled}
-        onClick={() => applyList('ul')}
-      />
-      <ToolbarButton
-        label="Numbered list"
-        active={blockType === 'ol'}
-        disabled={disabled}
-        onClick={() => applyList('ol')}
-      />
-      <ToolbarButton label="Clear formatting" disabled={disabled} onClick={clearFormatting} />
-      <ToolbarButton
-        label={isUploadingImage ? 'Uploading...' : 'Upload image'}
-        disabled={disabled || isUploadingImage}
-        onClick={handleUploadButton}
-      />
-      <ToolbarButton label="Paragraph" active={blockType === 'paragraph'} disabled={disabled} onClick={applyParagraph} />
-      <ToolbarButton label="Undo" disabled={disabled} onClick={() => editor.dispatchCommand(UNDO_COMMAND, undefined)} />
-      <ToolbarButton label="Redo" disabled={disabled} onClick={() => editor.dispatchCommand(REDO_COMMAND, undefined)} />
-    </Group>
+    <div className={editorShell.toolbarInner}>
+      <Group className={editorShell.toolbarControls} gap={6} wrap="nowrap" align="center">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            void handleImageFileSelected(e);
+          }}
+        />
+        <Select
+          className={editorShell.toolbarSelect}
+          size="xs"
+          w={158}
+          disabled={disabled}
+          allowDeselect={false}
+          comboboxProps={{ withinPortal: true, zIndex: 500 }}
+          value={blockType}
+          onChange={handleBlockSelect}
+          data={[
+            { value: 'paragraph', label: 'Paragraph' },
+            { value: 'h1', label: 'Heading 1' },
+            { value: 'h2', label: 'Heading 2' },
+            { value: 'ul', label: 'Bullet list' },
+            { value: 'ol', label: 'Numbered list' },
+          ]}
+        />
+        <ToolbarButton label="Bold" active={isBold} disabled={disabled} onClick={() => formatText('bold')} />
+        <ToolbarButton label="Italic" active={isItalic} disabled={disabled} onClick={() => formatText('italic')} />
+        <ToolbarButton
+          label="Underline"
+          active={isUnderline}
+          disabled={disabled}
+          onClick={() => formatText('underline')}
+        />
+        <ToolbarButton
+          label="Strike"
+          active={isStrikethrough}
+          disabled={disabled}
+          onClick={() => formatText('strikethrough')}
+        />
+        <ToolbarButton label="H1" active={blockType === 'h1'} disabled={disabled} onClick={() => applyHeading('h1')} />
+        <ToolbarButton label="H2" active={blockType === 'h2'} disabled={disabled} onClick={() => applyHeading('h2')} />
+        <ToolbarButton
+          label="Bullet list"
+          active={blockType === 'ul'}
+          disabled={disabled}
+          onClick={() => applyList('ul')}
+        />
+        <ToolbarButton
+          label="Numbered list"
+          active={blockType === 'ol'}
+          disabled={disabled}
+          onClick={() => applyList('ol')}
+        />
+        <ToolbarButton label="Undo" disabled={disabled} onClick={() => editor.dispatchCommand(UNDO_COMMAND, undefined)} />
+        <ToolbarButton label="Redo" disabled={disabled} onClick={() => editor.dispatchCommand(REDO_COMMAND, undefined)} />
+        <ToolbarButton label="Clear formatting" disabled={disabled} onClick={clearFormatting} />
+        <ToolbarButton
+          label={isUploadingImage ? 'Uploading...' : 'Upload image'}
+          disabled={disabled || isUploadingImage}
+          onClick={handleUploadButton}
+        />
+      </Group>
+      {trailing}
+    </div>
   );
 }
 
@@ -767,12 +876,25 @@ export interface DocumentEditorShellProps {
   documentId: string;
   canEdit: boolean;
   initialContent?: unknown;
+  documentTitle: string;
+  onShareClick: () => void;
+  shareDisabled?: boolean;
+  memberAvatars?: DocumentEditorShellMemberAvatar[];
+  /** When non-empty, overrides live SON AKTİVİTE; omit or [] for presence-only rows (UI-throttled ~1s). */
+  presenceActivities?: DocumentEditorShellPresenceActivity[];
+  commentsPanel?: ReactNode;
 }
 
 export function DocumentEditorShell({
   documentId,
   canEdit,
   initialContent,
+  documentTitle,
+  onShareClick,
+  shareDisabled,
+  memberAvatars,
+  presenceActivities: presenceActivitiesProp,
+  commentsPanel,
 }: DocumentEditorShellProps) {
   const queryClient = useQueryClient();
   const accessToken = useAuthStore((state) => state.accessToken);
@@ -792,6 +914,11 @@ export function DocumentEditorShell({
   >([]);
   const [overlayRevision, setOverlayRevision] = useState(0);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  const presenceLiveSourceRef = useRef({
+    activeUsers: [] as ActiveUser[],
+    remoteCursors: [] as RemoteCursor[],
+  });
 
   const pending = useRef<Uint8Array[]>([]);
   const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1318,21 +1445,85 @@ export function DocumentEditorShell({
     };
   }, [accessToken, authUser?.id, documentId, queryClient, ydoc]);
 
-  const persistLabel =
-    persistStatus === 'saving'
-      ? 'Syncing'
-      : persistStatus === 'saved'
-        ? 'Connected'
-        : persistStatus === 'error'
-          ? 'Offline'
-          : 'Connected';
+  const syncToolbarTrailing = useMemo(
+    () => (
+      <Group gap="xs" wrap="nowrap" align="center" className={editorShell.syncBadge}>
+        <Badge
+          variant="light"
+          size="sm"
+          styles={{
+            root: {
+              textTransform: 'none',
+              fontWeight: 600,
+              fontSize: 11,
+              letterSpacing: '0.03em',
+              border: '1px solid rgba(255,255,255,0.08)',
+              backgroundColor:
+                persistStatus === 'error'
+                  ? 'rgba(255,80,80,0.12)'
+                  : persistStatus === 'saving'
+                    ? 'rgba(240,160,64,0.12)'
+                    : 'rgba(62,207,142,0.14)',
+              color:
+                persistStatus === 'error'
+                  ? '#ff6b6b'
+                  : persistStatus === 'saving'
+                    ? '#f0a040'
+                    : '#3ecf8e',
+            },
+          }}
+        >
+          {persistStatus === 'saving'
+            ? 'Senkronize…'
+            : persistStatus === 'error'
+              ? 'Çevrimdışı'
+              : 'Senkronize'}
+        </Badge>
+        {!canEdit ? (
+          <Badge size="xs" variant="light" color="orange">
+            Salt okunur
+          </Badge>
+        ) : null}
+      </Group>
+    ),
+    [canEdit, persistStatus],
+  );
 
-  const connectionTone =
+  const statusSyncToneClass =
     persistStatus === 'error'
-      ? 'red'
+      ? editorShell.statusSyncErr
       : persistStatus === 'saving'
-        ? 'yellow'
-        : 'teal';
+        ? editorShell.statusSyncWarn
+        : editorShell.statusSyncOk;
+
+  const statusSyncLabel =
+    persistStatus === 'saving'
+      ? 'Senkronize…'
+      : persistStatus === 'error'
+        ? 'Çevrimdışı'
+        : 'Senkronize';
+
+  const presenceRailRows = useMemo(
+    () =>
+      activeUsers.length > 0
+        ? activeUsers.map((u, i) => ({
+            key: u.userId,
+            userId: u.userId,
+            fullName: u.fullName,
+            origin: 'session' as const,
+            index: i,
+          }))
+        : (memberAvatars ?? []).slice(0, 8).map((m, i) => ({
+            key: m.userId,
+            userId: m.userId,
+            fullName: m.fullName,
+            origin: 'member' as const,
+            index: i,
+          })),
+    [activeUsers, memberAvatars],
+  );
+
+  presenceLiveSourceRef.current = { activeUsers, remoteCursors };
 
   if (loadError) {
     return (
@@ -1344,135 +1535,300 @@ export function DocumentEditorShell({
 
   if (!hydrated) {
     return (
-      <Text size="sm" c="dimmed">
+      <Text size="sm" style={{ color: '#6b6f85' }}>
         Loading document state...
       </Text>
     );
   }
 
   return (
-    <Stack gap="sm">
-      <Group justify="space-between" align="center">
-        <Group gap="xs">
-          <Badge color={connectionTone} variant="light">
-            {persistLabel}
-          </Badge>
-          <Text size="xs" c="dimmed">
-            {persistStatus === 'saving' ? 'Sync in progress' : 'Realtime collaboration active'}
-          </Text>
-          {!canEdit ? (
-            <Badge color="orange" variant="light">
-              View only
-            </Badge>
-          ) : null}
-        </Group>
-        <Group gap="md" align="center">
-          <Group gap="xs" align="center">
-            <Text size="xs" c="dimmed">
-              Active now:
-            </Text>
-            {activeUsers.length === 0 ? (
-              <Text size="xs" c="dimmed">
-                0 users
-              </Text>
-            ) : (
-              activeUsers.map((user) => (
-                <Badge
-                  key={user.userId}
-                  variant="light"
-                  style={{
-                    color: getUserColor(user.userId),
-                    borderColor: getUserColor(user.userId),
-                  }}
-                >
-                  {user.fullName}
-                </Badge>
-              ))
-            )}
-          </Group>
-          {persistMessage ? (
-            <Text size="xs" c="red">
-              {persistMessage}
-            </Text>
-          ) : null}
-        </Group>
-      </Group>
-      {remoteCursors.length > 0 ? (
-        <Group gap="xs" mb="xs">
-          <Text size="xs" c="dimmed">
-            Remote cursors:
-          </Text>
-          {remoteCursors.map((cursor) => (
-            <Badge
-              key={cursor.userId}
-              variant="outline"
-              size="xs"
-              style={{ color: cursor.color, borderColor: cursor.color, opacity: 0.8 }}
-            >
-              {cursor.fullName} at {cursor.focusOffset}
-            </Badge>
-          ))}
-        </Group>
-      ) : null}
-      <Box
-        ref={editorContainerRef}
-        style={{
-          minHeight: 320,
-          border: '1px solid var(--fd-border-subtle)',
-          borderRadius: 'var(--mantine-radius-md)',
-          backgroundColor: 'var(--fd-surface-card)',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
+    <Box className={editorShell.root}>
+      <LexicalComposer
+        key={`${documentId}-${canEdit ? 'edit' : 'view'}`}
+        initialConfig={lexicalInitialConfig}
       >
-        <LexicalComposer
-          key={`${documentId}-${canEdit ? 'edit' : 'view'}`}
-          initialConfig={lexicalInitialConfig}
-        >
-          <DocumentEditorCapabilitiesProvider canEdit={canEdit}>
-            <Box
-              style={{
-                position: 'sticky',
-                top: 0,
-                zIndex: 20,
-                borderBottom: '1px solid var(--fd-border-subtle)',
-                backgroundColor: 'var(--fd-surface-card-elevated)',
-                padding: '10px 12px',
-              }}
-            >
+        <DocumentEditorCapabilitiesProvider canEdit={canEdit}>
+          <Box className={editorShell.workspaceInner}>
+            <Box className={editorShell.docChromeBar}>
+              <Box style={{ flex: 1, minWidth: 0 }} aria-hidden />
+              <Group gap={8} wrap="nowrap" align="center" justify="center" style={{ flex: '0 1 auto' }}>
+                <Text size="xs" style={{ color: '#6b6f85', flexShrink: 0 }}>
+                  FlowDocs
+                </Text>
+                <Text size="xs" style={{ color: '#6b6f85' }}>
+                  /
+                </Text>
+                <Text className={editorShell.docChromeTitle} lineClamp={1} style={{ fontSize: 13 }}>
+                  {documentTitle}
+                </Text>
+              </Group>
+              <Group gap="md" wrap="nowrap" justify="flex-end" style={{ flex: 1, minWidth: 0 }}>
+                <Avatar.Group spacing={-10}>
+                  {activeUsers.length > 0
+                    ? activeUsers.slice(0, 6).map((user) => (
+                        <Indicator
+                          key={user.userId}
+                          inline
+                          position="bottom-end"
+                          offset={4}
+                          size={10}
+                          color="teal"
+                          withBorder
+                          zIndex={2}
+                        >
+                          <Avatar
+                            radius="xl"
+                            size="md"
+                            color={getUserColor(user.userId)}
+                            styles={{ root: { border: '2px solid #1a1d27' } }}
+                          >
+                            {initialsFromName(user.fullName)}
+                          </Avatar>
+                        </Indicator>
+                      ))
+                    : (memberAvatars ?? []).slice(0, 5).map((member) => (
+                        <Avatar
+                          key={member.userId}
+                          radius="xl"
+                          size="md"
+                          src={member.avatarUrl ?? undefined}
+                          color="gray"
+                          styles={{
+                            root: {
+                              border: '2px solid #1a1d27',
+                              opacity: 0.5,
+                            },
+                          }}
+                        >
+                          {initialsFromName(member.fullName)}
+                        </Avatar>
+                      ))}
+                </Avatar.Group>
+                <Button
+                  size="compact-sm"
+                  variant="light"
+                  onClick={onShareClick}
+                  disabled={shareDisabled}
+                >
+                  Paylaş
+                </Button>
+              </Group>
+            </Box>
+
+            {persistMessage ? (
+              <Box px="md" py={6} style={{ background: 'rgba(185, 28, 28, 0.12)' }}>
+                <Text size="xs" c="red">
+                  {persistMessage}
+                </Text>
+              </Box>
+            ) : null}
+
+            <div className={editorShell.toolbarStrip}>
               <EditorToolbarPlugin
                 disabled={!canEdit}
                 isUploadingImage={isUploadingImage}
                 onUploadImage={handleUploadImage}
+                trailing={syncToolbarTrailing}
               />
-            </Box>
-            <Box px="md" py="sm">
-              <RichTextPlugin
-                contentEditable={
-                  <ContentEditable
-                    contentEditable={canEdit}
-                    aria-readonly={!canEdit}
-                    data-document-id={documentId}
-                    className="flowdocs-editor-content"
-                    style={{
-                      minHeight: 250,
-                      outline: 'none',
-                      color: 'var(--mantine-color-text)',
-                      whiteSpace: 'pre-wrap',
-                      opacity: canEdit ? 1 : 0.8,
-                      lineHeight: 1.7,
-                    }}
-                  />
-                }
-                placeholder={
-                  <Text size="sm" c="dimmed">
-                    Start writing your document...
-                  </Text>
-                }
-                ErrorBoundary={LexicalErrorBoundary}
-              />
-              <ListPlugin />
-            </Box>
+            </div>
+
+            <div className={editorShell.bodyThreeCol}>
+              <aside className={editorShell.leftOutline}>
+                <div className={editorShell.outlineHeader}>İÇİNDEKİLER</div>
+                <nav className={editorShell.outlineNav} aria-label="İçindekiler" />
+              </aside>
+
+              <div className={editorShell.centerColumn}>
+                <Box className={editorShell.centerCanvasStack}>
+                  <div ref={editorContainerRef} className={editorShell.canvasWorkbench}>
+                    <div className={`${editorShell.documentPage} flowdocs-document-page`}>
+                      <div className={editorShell.editorBlock}>
+                        <RichTextPlugin
+                          contentEditable={
+                            <ContentEditable
+                              contentEditable={canEdit}
+                              aria-readonly={!canEdit}
+                              data-document-id={documentId}
+                              className="flowdocs-editor-content"
+                              style={{
+                                minHeight: 280,
+                                outline: 'none',
+                                whiteSpace: 'pre-wrap',
+                                opacity: canEdit ? 1 : 0.85,
+                              }}
+                            />
+                          }
+                          placeholder={null}
+                          ErrorBoundary={LexicalErrorBoundary}
+                        />
+                        <ListPlugin />
+                      </div>
+                    </div>
+                  </div>
+                  <Box className={editorShell.cursorOverlayLayer}>
+                    {remoteCursorLayouts.map((cursor) => (
+                      <Box key={cursor.userId}>
+                        {cursor.selectionRect ? (
+                          <Box
+                            style={{
+                              position: 'absolute',
+                              left: cursor.selectionRect.left,
+                              top: cursor.selectionRect.top,
+                              width: cursor.selectionRect.width,
+                              height: cursor.selectionRect.height,
+                              backgroundColor: cursor.color,
+                              opacity: 0.2,
+                              borderRadius: 2,
+                            }}
+                          />
+                        ) : null}
+                        <Box
+                          style={{
+                            position: 'absolute',
+                            left: cursor.caretLeft,
+                            top: cursor.caretTop,
+                            width: 2,
+                            height: cursor.caretHeight,
+                            backgroundColor: cursor.color,
+                            borderRadius: 2,
+                          }}
+                        />
+                        <Box
+                          style={{
+                            position: 'absolute',
+                            left: cursor.caretLeft + 4,
+                            top: cursor.caretTop - 16,
+                            backgroundColor: cursor.color,
+                            color: '#fff',
+                            fontSize: 10,
+                            lineHeight: 1.2,
+                            padding: '1px 6px',
+                            borderRadius: 10,
+                            whiteSpace: 'nowrap',
+                            maxWidth: 160,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {cursor.fullName}
+                        </Box>
+                      </Box>
+                    ))}
+                  </Box>
+                </Box>
+              </div>
+
+              <aside className={editorShell.rightRail}>
+                <Tabs
+                  defaultValue="users"
+                  className={editorShell.railTabs}
+                  keepMounted={false}
+                  style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
+                >
+                  <Tabs.List grow>
+                    <Tabs.Tab value="users">Kullanıcılar</Tabs.Tab>
+                    <Tabs.Tab value="comments">Yorumlar</Tabs.Tab>
+                    <Tabs.Tab value="ws">WS Log</Tabs.Tab>
+                  </Tabs.List>
+                  <Tabs.Panel value="users" pt={0} className={editorShell.railPanel}>
+                    <ScrollArea
+                      h="100%"
+                      scrollbarSize={6}
+                      type="auto"
+                      classNames={{ root: editorShell.railUsersScroll, viewport: editorShell.railUsersViewport }}
+                    >
+                      <Stack gap={0} className={editorShell.railUsersBody}>
+                        <Text className={editorShell.presenceSectionLabel}>
+                          ŞU AN AKTİF — {activeUsers.length}
+                        </Text>
+
+                        {presenceRailRows.length === 0 ? (
+                          <Text size="sm" className={editorShell.muted} mb="lg">
+                            Bu dokümanda aktif kullanıcı yok.
+                          </Text>
+                        ) : (
+                          <Stack gap={0} mb="lg">
+                            {presenceRailRows.map((row) => {
+                              const hint = cursorHintFromRemote(row.userId, remoteCursors);
+                              const cursorLine =
+                                hint ??
+                                (row.origin === 'session' ? '↳ Konum senkronize ediliyor' : null);
+                              const statusLabel =
+                                row.origin === 'session'
+                                  ? PRESENCE_STATUS_ACTIVE[row.index % PRESENCE_STATUS_ACTIVE.length]
+                                  : 'Katılımcı';
+                              const dot = presenceDotColor(row.index);
+                              return (
+                                <Box key={row.key} className={editorShell.presenceUserCard}>
+                                  <Group
+                                    wrap="nowrap"
+                                    align="center"
+                                    gap={12}
+                                    justify="space-between"
+                                    className={editorShell.presenceUserCardInner}
+                                  >
+                                    <Box
+                                      className={editorShell.presenceAvatarLg}
+                                      style={{ background: presenceGradientCss(row.index) }}
+                                      aria-hidden
+                                    >
+                                      {initialsFromName(row.fullName)}
+                                    </Box>
+                                    <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
+                                      <Text fw={700} size="sm" c="#e8eaf5" truncate>
+                                        {row.fullName}
+                                      </Text>
+                                      <Text size="xs" className={editorShell.presenceMuted}>
+                                        {statusLabel}
+                                      </Text>
+                                      {cursorLine ? (
+                                        <Text size="xs" className={editorShell.presenceCursorHint}>
+                                          {cursorLine}
+                                        </Text>
+                                      ) : null}
+                                    </Stack>
+                                    <Box
+                                      className={editorShell.presenceStatusDot}
+                                      style={{
+                                        backgroundColor: dot,
+                                        boxShadow: `0 0 8px ${dot}`,
+                                      }}
+                                      aria-hidden
+                                    />
+                                  </Group>
+                                </Box>
+                              );
+                            })}
+                          </Stack>
+                        )}
+
+                        <PresenceActivityFeed
+                          presenceActivitiesProp={presenceActivitiesProp}
+                          presenceLiveSourceRef={presenceLiveSourceRef}
+                        />
+                      </Stack>
+                    </ScrollArea>
+                  </Tabs.Panel>
+                  <Tabs.Panel value="comments" pt={0} className={editorShell.railPanel}>
+                    <ScrollArea h="100%" scrollbarSize={6} type="auto">
+                      <Box className={editorShell.commentsTabBody}>
+                        {commentsPanel ?? (
+                          <Text size="sm" className={editorShell.muted}>
+                            Yorumlar bu sekmede gösterilecek.
+                          </Text>
+                        )}
+                      </Box>
+                    </ScrollArea>
+                  </Tabs.Panel>
+                  <Tabs.Panel value="ws" pt={0} className={editorShell.railPanel}>
+                    <div className={editorShell.wsLogPlaceholder}>
+                      WebSocket olay günlüğü burada listelenecek (yakında).
+                    </div>
+                  </Tabs.Panel>
+                </Tabs>
+              </aside>
+            </div>
+
             <HistoryPlugin />
             <YjsLexicalBridgePlugin
               ydoc={ydoc}
@@ -1483,66 +1839,20 @@ export function DocumentEditorShell({
             <CommentSelectionCapturePlugin documentId={documentId} />
             <ImageClipboardPlugin />
             <ImageDragDropPlugin />
-          </DocumentEditorCapabilitiesProvider>
-        </LexicalComposer>
-        <Box
-          style={{
-            position: 'absolute',
-            inset: 0,
-            pointerEvents: 'none',
-            zIndex: 10,
-          }}
-        >
-          {remoteCursorLayouts.map((cursor) => (
-            <Box key={cursor.userId}>
-              {cursor.selectionRect ? (
-                <Box
-                  style={{
-                    position: 'absolute',
-                    left: cursor.selectionRect.left,
-                    top: cursor.selectionRect.top,
-                    width: cursor.selectionRect.width,
-                    height: cursor.selectionRect.height,
-                    backgroundColor: cursor.color,
-                    opacity: 0.2,
-                    borderRadius: 2,
-                  }}
-                />
-              ) : null}
-              <Box
-                style={{
-                  position: 'absolute',
-                  left: cursor.caretLeft,
-                  top: cursor.caretTop,
-                  width: 2,
-                  height: cursor.caretHeight,
-                  backgroundColor: cursor.color,
-                  borderRadius: 2,
-                }}
-              />
-              <Box
-                style={{
-                  position: 'absolute',
-                  left: cursor.caretLeft + 4,
-                  top: cursor.caretTop - 16,
-                  backgroundColor: cursor.color,
-                  color: '#fff',
-                  fontSize: 10,
-                  lineHeight: 1.2,
-                  padding: '1px 6px',
-                  borderRadius: 10,
-                  whiteSpace: 'nowrap',
-                  maxWidth: 160,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                {cursor.fullName}
-              </Box>
-            </Box>
-          ))}
-        </Box>
-      </Box>
-    </Stack>
+
+            <footer className={editorShell.statusBar}>
+              <Text component="span">Satır — · Sütun —</Text>
+              <Text component="span" style={{ flex: 1, textAlign: 'center' }} truncate>
+                Kelime — · Karakter — · TR
+              </Text>
+              <Text component="span" className={statusSyncToneClass}>
+                ● {activeUsers.length} kullanıcı · {statusSyncLabel}
+              </Text>
+            </footer>
+          </Box>
+        </DocumentEditorCapabilitiesProvider>
+      </LexicalComposer>
+    </Box>
   );
+
 }

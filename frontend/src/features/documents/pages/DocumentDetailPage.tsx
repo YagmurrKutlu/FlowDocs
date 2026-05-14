@@ -3,6 +3,7 @@ import {
   Alert,
   Avatar,
   Badge,
+  Box,
   Button,
   Group,
   Loader,
@@ -33,6 +34,7 @@ import {
   useUpdateDocumentMemberRoleMutation,
 } from '../hooks/useDocumentsQueries';
 import type { DocumentMemberRow } from '../types/document.types';
+import docPageStyles from './DocumentDetailPage.module.css';
 
 function formatDate(iso: string): string {
   try {
@@ -109,19 +111,6 @@ export function DocumentDetailPage() {
   return (
     <PageContainer>
       <Stack gap="lg">
-        <Group justify="space-between" align="flex-start" wrap="wrap">
-          <Button variant="subtle" color="gray" onClick={() => navigate('/documents')}>
-            ← Back to documents
-          </Button>
-          <Button
-            variant="light"
-            onClick={() => setShareModalOpen(true)}
-            disabled={!detailQuery.isSuccess}
-          >
-            Share
-          </Button>
-        </Group>
-
         {detailQuery.isLoading ? (
           <Stack gap="md">
             <Skeleton h={36} w="60%" radius="md" />
@@ -153,51 +142,35 @@ export function DocumentDetailPage() {
 
         {detailQuery.isSuccess && detailQuery.data ? (
           <>
-            <Stack gap={4}>
-              <Title order={2}>{detailQuery.data.document.title}</Title>
-              <Text c="dimmed" ff="monospace" size="sm">
-                {detailQuery.data.document.slug}
-              </Text>
-              <Group gap="xs" mt="xs">
-                <Badge color="violet" variant="light">
-                  Version {detailQuery.data.document.currentVersion}
-                </Badge>
-                <Text size="sm" c="dimmed">
-                  Created {formatDate(detailQuery.data.document.createdAt)}
-                </Text>
-                <Text size="sm" c="dimmed">
-                  · Updated {formatDate(detailQuery.data.document.updatedAt)}
-                </Text>
-              </Group>
-            </Stack>
-
-            <AppCard p="xl" radius="lg">
-              <Stack gap="md">
-                <Title order={4}>Editor</Title>
-                <Text c="dimmed" size="sm">
-                  Yjs durumu sunucuda saklanır; bu görünüm çoklu kullanıcı senkronu için
-                  temel Lexical + kalıcılık iskeletidir.
-                </Text>
+            <Box className={docPageStyles.editorPage}>
+              <Stack gap="xl" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
                 {id ? (
-                  <DocumentEditorShell
-                    documentId={id}
-                    canEdit={canEdit}
-                    initialContent={detailQuery.data.document.previewContent}
-                  />
+                  <Box style={{ flex: 1, minHeight: 0 }}>
+                    <DocumentEditorShell
+                      documentId={id}
+                      canEdit={canEdit}
+                      initialContent={detailQuery.data.document.previewContent}
+                      documentTitle={detailQuery.data.document.title}
+                      onShareClick={() => setShareModalOpen(true)}
+                      shareDisabled={!detailQuery.isSuccess}
+                      memberAvatars={membersQuery.data?.members.map((m) => ({
+                        userId: m.userId,
+                        fullName: m.fullName,
+                        avatarUrl: m.avatarUrl,
+                      }))}
+                      commentsPanel={
+                        <DocumentCommentsPanel
+                          documentId={id}
+                          canRead={canRead}
+                          canEdit={canEdit}
+                          currentUserId={authUser?.id}
+                        />
+                      }
+                    />
+                  </Box>
                 ) : null}
               </Stack>
-            </AppCard>
-
-            {id ? (
-              <AppCard p="lg" radius="lg">
-                <DocumentCommentsPanel
-                  documentId={id}
-                  canRead={canRead}
-                  canEdit={canEdit}
-                  currentUserId={authUser?.id}
-                />
-              </AppCard>
-            ) : null}
+            </Box>
 
             <AppCard p="lg" radius="lg">
               <Group justify="space-between" align="center">

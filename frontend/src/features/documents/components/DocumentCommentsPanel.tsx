@@ -1,16 +1,16 @@
 import {
-  Badge,
-  Blockquote,
+  Avatar,
+  Box,
   Button,
   Group,
   Stack,
   Text,
   Textarea,
   TextInput,
-  Title,
+  UnstyledButton,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconPencil, IconTrash } from '@tabler/icons-react';
+import { IconCheck, IconPencil, IconTrash } from '@tabler/icons-react';
 import axios from 'axios';
 import { useEffect, useMemo, useState } from 'react';
 import { getApiErrorMessage } from '../../../shared/api/errors';
@@ -26,23 +26,46 @@ import {
   useResolveDocumentCommentMutation,
 } from '../hooks/useDocumentsQueries';
 import type { DocumentComment } from '../types/document.types';
+import classes from './DocumentCommentsPanel.module.css';
 
 type CommentFilterTab = 'all' | 'active' | 'resolved';
 
 const FILTER_LABELS: Record<CommentFilterTab, string> = {
-  all: 'All',
-  active: 'Active',
-  resolved: 'Resolved',
+  all: 'Tümü',
+  active: 'Açık',
+  resolved: 'Çözüldü',
 };
 
-function formatDate(iso: string): string {
+function initialsFromName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+  return `${parts[0]![0] ?? ''}${parts[1]![0] ?? ''}`.toUpperCase();
+}
+
+function formatCommentClock(iso: string): string {
   try {
-    return new Date(iso).toLocaleString(undefined, {
-      dateStyle: 'medium',
-      timeStyle: 'short',
+    return new Date(iso).toLocaleTimeString('tr-TR', {
+      hour: '2-digit',
+      minute: '2-digit',
     });
   } catch {
-    return iso;
+    return '';
+  }
+}
+
+function formatResolvedDetail(comment: DocumentComment): string {
+  if (!comment.resolvedAt || !comment.resolvedBy) return '';
+  try {
+    const t = new Date(comment.resolvedAt).toLocaleString('tr-TR', {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    return `${comment.resolvedBy.fullName} · ${t}`;
+  } catch {
+    return comment.resolvedBy.fullName;
   }
 }
 
@@ -72,6 +95,7 @@ export function DocumentCommentsPanel({
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingBody, setEditingBody] = useState('');
   const [commentFilter, setCommentFilter] = useState<CommentFilterTab>('all');
+  const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null);
 
   const allComments = commentsQuery.data?.comments ?? [];
   const filteredComments = useMemo(() => {
@@ -245,79 +269,100 @@ export function DocumentCommentsPanel({
     });
   };
 
+  const busy =
+    deleteMutation.isPending || resolveMutation.isPending || updateMutation.isPending;
+
   return (
-    <Stack gap="md">
-      <Title order={4}>Comments</Title>
+    <Stack gap={0} className={classes.root}>
+      <Text component="h2" className={classes.sectionTitle}>
+        YORUMLAR
+      </Text>
 
       {!canRead ? (
-        <Text size="sm" c="dimmed">
-          You do not have access to comments on this document.
+        <Text size="sm" className={classes.mutedText}>
+          Bu dokümanda yorumları görüntüleme iznin yok.
         </Text>
       ) : null}
 
       {canRead ? (
         <>
-          <Stack gap="xs">
-            <Textarea
-              label="New comment"
-              placeholder="Write a comment…"
-              minRows={3}
-              value={body}
-              onChange={(e) => setBody(e.currentTarget.value)}
-            />
-            <TextInput
-              label="Selected text (optional)"
-              placeholder="Quote or excerpt"
-              value={selectedText}
-              onChange={(e) => setSelectedText(e.currentTarget.value)}
-            />
-            <Group gap="xs" align="flex-end" wrap="wrap">
+          <Box className={classes.formSection}>
+            <Text className={classes.formTitle}>Yeni yorum</Text>
+            <Stack gap="sm">
+              <Textarea
+                label="Yorum"
+                placeholder="Yorum yaz..."
+                minRows={3}
+                value={body}
+                onChange={(e) => setBody(e.currentTarget.value)}
+                classNames={{ label: classes.formLabel, input: classes.formTextarea }}
+              />
+              <TextInput
+                label="Seçili metin (isteğe bağlı)"
+                placeholder="Alıntı veya özet"
+                value={selectedText}
+                onChange={(e) => setSelectedText(e.currentTarget.value)}
+                classNames={{ label: classes.formLabel, input: classes.formQuoteInput }}
+              />
+              <Group gap="sm" align="flex-start" wrap="wrap">
+                <Button
+                  type="button"
+                  variant="light"
+                  size="xs"
+                  classNames={{ root: classes.captureBtnRoot }}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    window.dispatchEvent(
+                      new CustomEvent(FLOWDOCS_CAPTURE_COMMENT_SELECTION, {
+                        detail: { documentId },
+                      }),
+                    );
+                  }}
+                >
+                  Seçimi kullan
+                </Button>
+                <Text className={classes.selectionHint}>
+                  Önce editörde metin seç; ardından buraya tıkla (fare tuşu basılıyken seçim
+                  korunur).
+                </Text>
+              </Group>
+
+              <details className={classes.advancedDetails}>
+                <summary className={classes.advancedSummary}>Gelişmiş · bağlantı offset</summary>
+                <Box className={classes.advancedBody}>
+                  <Group grow gap="sm">
+                    <TextInput
+                      label="Anchor offset"
+                      placeholder="örn. 12"
+                      value={anchorInput}
+                      onChange={(e) => setAnchorInput(e.currentTarget.value)}
+                      classNames={{ label: classes.formLabel, input: classes.advancedInput }}
+                    />
+                    <TextInput
+                      label="Focus offset"
+                      placeholder="örn. 20"
+                      value={focusInput}
+                      onChange={(e) => setFocusInput(e.currentTarget.value)}
+                      classNames={{ label: classes.formLabel, input: classes.advancedInput }}
+                    />
+                  </Group>
+                </Box>
+              </details>
+
               <Button
-                type="button"
-                variant="light"
-                size="xs"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  window.dispatchEvent(
-                    new CustomEvent(FLOWDOCS_CAPTURE_COMMENT_SELECTION, {
-                      detail: { documentId },
-                    }),
-                  );
-                }}
+                onClick={handleAddComment}
+                loading={createMutation.isPending}
+                disabled={!body.trim()}
+                classNames={{ root: classes.addBtnRoot }}
               >
-                Use current selection
+                Yorum ekle
               </Button>
-              <Text size="xs" c="dimmed" maw={280}>
-                Select text in the editor first, then click here (selection is kept on
-                mousedown).
-              </Text>
-            </Group>
-            <Group grow>
-              <TextInput
-                label="Anchor offset (optional)"
-                placeholder="e.g. 12"
-                value={anchorInput}
-                onChange={(e) => setAnchorInput(e.currentTarget.value)}
-              />
-              <TextInput
-                label="Focus offset (optional)"
-                placeholder="e.g. 20"
-                value={focusInput}
-                onChange={(e) => setFocusInput(e.currentTarget.value)}
-              />
-            </Group>
-            <Button
-              onClick={handleAddComment}
-              loading={createMutation.isPending}
-              disabled={!body.trim()}
-            >
-              Add comment
-            </Button>
-          </Stack>
+            </Stack>
+          </Box>
 
           {commentsQuery.isLoading ? (
-            <Text size="sm" c="dimmed">
-              Loading comments…
+            <Text size="sm" className={classes.mutedText}>
+              Yorumlar yükleniyor…
             </Text>
           ) : null}
 
@@ -328,7 +373,7 @@ export function DocumentCommentsPanel({
           ) : null}
 
           {commentsQuery.isSuccess && allComments.length > 0 ? (
-            <Group gap={4} wrap="nowrap" role="tablist" aria-label="Comment filters">
+            <Group gap={4} wrap="wrap" role="tablist" aria-label="Yorum filtreleri" className={classes.filterRow}>
               {(
                 [
                   ['all', FILTER_LABELS.all],
@@ -341,20 +386,14 @@ export function DocumentCommentsPanel({
                   <Button
                     key={value}
                     type="button"
-                    variant={selected ? 'light' : 'subtle'}
-                    size="compact-xs"
+                    variant="subtle"
+                    size="compact-sm"
                     role="tab"
                     aria-selected={selected}
-                    onClick={() => setCommentFilter(value)}
-                    styles={{
-                      root: {
-                        fontWeight: selected ? 600 : 400,
-                        borderBottom: selected
-                          ? '2px solid var(--mantine-primary-color-filled)'
-                          : '2px solid transparent',
-                        borderRadius: 'var(--mantine-radius-sm) var(--mantine-radius-sm) 0 0',
-                      },
+                    classNames={{
+                      root: selected ? classes.filterRootActive : classes.filterRoot,
                     }}
+                    onClick={() => setCommentFilter(value)}
                   >
                     {label}
                   </Button>
@@ -364,157 +403,172 @@ export function DocumentCommentsPanel({
           ) : null}
 
           {showNoCommentsYet ? (
-            <Text size="sm" c="dimmed">
-              No comments yet.
-            </Text>
+            <Stack gap={6} mb="md">
+              <Text className={classes.emptyTitle}>Henüz yorum yok</Text>
+              <Text className={classes.mutedText}>Metin seçip yeni yorum ekleyebilirsin.</Text>
+            </Stack>
           ) : null}
 
           {showEmptyCategory ? (
-            <Text size="sm" c="dimmed">
+            <Text size="sm" className={classes.mutedText} mb="md">
               Bu kategoride yorum yok.
             </Text>
           ) : null}
 
           {commentsQuery.isSuccess && filteredComments.length > 0 ? (
-            <Stack gap="md">
-              {filteredComments.map((comment) => (
-                <Stack
-                  key={comment.id}
-                  gap={6}
-                  p="sm"
-                  style={{
-                    borderRadius: 8,
-                    border: '1px solid var(--mantine-color-dark-4)',
-                  }}
-                >
-                  <Group justify="space-between" align="flex-start">
-                    <div>
-                      <Text size="sm" fw={600}>
-                        {comment.author.fullName}
-                      </Text>
-                      <Text size="xs" c="dimmed">
-                        {comment.author.email}
-                      </Text>
-                    </div>
-                    <Group gap="xs" wrap="nowrap">
-                      {comment.isResolved ? (
-                        <Badge color="gray" variant="light" size="sm">
-                          Resolved
-                        </Badge>
-                      ) : null}
-                      {canShowResolve(comment) ? (
-                        <Button
-                          size="xs"
-                          variant="light"
-                          loading={resolveMutation.isPending}
-                          disabled={
-                            deleteMutation.isPending ||
-                            resolveMutation.isPending ||
-                            updateMutation.isPending
-                          }
-                          onClick={() => handleResolve(comment)}
-                        >
-                          Resolve
-                        </Button>
-                      ) : null}
-                      {canShowDelete(comment) ? (
-                        <Button
-                          size="xs"
-                          variant="subtle"
-                          color="red"
-                          leftSection={<IconTrash size={14} />}
-                          loading={
-                            deleteMutation.isPending &&
-                            deleteMutation.variables === comment.id
-                          }
-                          disabled={
-                            deleteMutation.isPending ||
-                            resolveMutation.isPending ||
-                            updateMutation.isPending
-                          }
-                          onClick={() => handleDelete(comment)}
-                        >
-                          Sil
-                        </Button>
-                      ) : null}
-                      {canShowEdit(comment) ? (
-                        <Button
-                          size="xs"
-                          variant="subtle"
-                          leftSection={<IconPencil size={14} />}
-                          disabled={
-                            deleteMutation.isPending ||
-                            resolveMutation.isPending ||
-                            updateMutation.isPending
-                          }
-                          onClick={() => handleStartEdit(comment)}
-                        >
-                          Duzenle
-                        </Button>
-                      ) : null}
-                    </Group>
-                  </Group>
+            <Box className={classes.list}>
+              {filteredComments.map((comment) => {
+                const isActive =
+                  editingCommentId === comment.id || hoveredCommentId === comment.id;
+                return (
+                  <Box
+                    key={comment.id}
+                    className={`${classes.commentCard}${isActive ? ` ${classes.commentCardActive}` : ''}`}
+                    data-comment-id={comment.id}
+                    data-flowdocs-comment-id={comment.id}
+                    onMouseEnter={() => setHoveredCommentId(comment.id)}
+                    onMouseLeave={() => setHoveredCommentId(null)}
+                  >
+                    {comment.selectedText ? (
+                      <Box className={classes.quoteBand}>
+                        <Text component="p" className={classes.quoteText}>
+                          &ldquo;{comment.selectedText}&rdquo;
+                        </Text>
+                      </Box>
+                    ) : null}
 
-                  {comment.selectedText ? (
-                    <Blockquote cite={comment.author.fullName} p="xs" fz="sm">
-                      {comment.selectedText}
-                    </Blockquote>
-                  ) : null}
-
-                  {comment.anchorOffset != null && comment.focusOffset != null ? (
-                    <Text size="xs" c="dimmed" ff="monospace">
-                      Selection: {comment.anchorOffset} → {comment.focusOffset}
-                    </Text>
-                  ) : null}
-
-                  {editingCommentId === comment.id ? (
-                    <Stack gap="xs">
-                      <Textarea
-                        value={editingBody}
-                        minRows={3}
-                        onChange={(e) => setEditingBody(e.currentTarget.value)}
-                        disabled={updateMutation.isPending}
-                      />
-                      <Group gap="xs">
-                        <Button
-                          size="xs"
-                          onClick={() => handleSaveEdit(comment)}
-                          loading={
-                            updateMutation.isPending &&
-                            updateMutation.variables?.commentId === comment.id
-                          }
-                          disabled={
-                            updateMutation.isPending ||
-                            !editingBody.trim() ||
-                            deleteMutation.isPending ||
-                            resolveMutation.isPending
-                          }
+                    <Box className={classes.cardBody}>
+                      <Box className={classes.authorRow}>
+                        <Avatar
+                          src={comment.author.avatarUrl ?? undefined}
+                          radius="xl"
+                          size={28}
+                          color="violet"
                         >
-                          Kaydet
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="default"
-                          onClick={handleCancelEdit}
-                          disabled={updateMutation.isPending}
-                        >
-                          Vazgec
-                        </Button>
-                      </Group>
-                    </Stack>
-                  ) : (
-                    <Text size="sm">{comment.body}</Text>
-                  )}
+                          {initialsFromName(comment.author.fullName)}
+                        </Avatar>
+                        <Text className={classes.authorName}>{comment.author.fullName}</Text>
+                        <Text className={classes.time}>{formatCommentClock(comment.createdAt)}</Text>
+                      </Box>
 
-                  <Text size="xs" c="dimmed">
-                    {formatDate(comment.createdAt)}
-                    {comment.resolvedAt && comment.resolvedBy
-                      ? ` · Resolved by ${comment.resolvedBy.fullName}`
-                      : ''}
-                  </Text>
-                </Stack>
-              ))}
-            </Stack>
+                      {editingCommentId === comment.id ? (
+                        <Stack gap="xs">
+                          <Textarea
+                            value={editingBody}
+                            minRows={3}
+                            onChange={(e) => setEditingBody(e.currentTarget.value)}
+                            disabled={updateMutation.isPending}
+                            classNames={{ input: classes.editTextarea }}
+                          />
+                          <Group gap="xs" className={classes.editActions}>
+                            <Button
+                              size="xs"
+                              onClick={() => handleSaveEdit(comment)}
+                              loading={
+                                updateMutation.isPending &&
+                                updateMutation.variables?.commentId === comment.id
+                              }
+                              disabled={
+                                updateMutation.isPending ||
+                                !editingBody.trim() ||
+                                deleteMutation.isPending ||
+                                resolveMutation.isPending
+                              }
+                            >
+                              Kaydet
+                            </Button>
+                            <Button
+                              size="xs"
+                              variant="default"
+                              onClick={handleCancelEdit}
+                              disabled={updateMutation.isPending}
+                            >
+                              Vazgeç
+                            </Button>
+                          </Group>
+                        </Stack>
+                      ) : (
+                        <Text className={classes.commentBody}>{comment.body}</Text>
+                      )}
+
+                      {comment.isResolved && (comment.resolvedAt || comment.resolvedBy) ? (
+                        <Text className={classes.metaLine}>{formatResolvedDetail(comment)}</Text>
+                      ) : null}
+
+                      {editingCommentId !== comment.id &&
+                      comment.anchorOffset != null &&
+                      comment.focusOffset != null ? (
+                        <details className={classes.advancedDetails}>
+                          <summary className={classes.advancedSummary}>Konum bilgisi</summary>
+                          <Box className={classes.advancedBody}>
+                            <Text size="xs" className={classes.mutedText} ff="monospace">
+                              {comment.anchorOffset} → {comment.focusOffset}
+                            </Text>
+                          </Box>
+                        </details>
+                      ) : null}
+
+                      <Box className={classes.actionsRow}>
+                        <UnstyledButton type="button" className={classes.yanitlaBtn} disabled>
+                          Yanıtla
+                        </UnstyledButton>
+
+                        {comment.isResolved ? (
+                          <Text className={classes.resolveLabel}>
+                            <IconCheck size={14} stroke={2.5} aria-hidden />
+                            Çözüldü
+                          </Text>
+                        ) : canShowResolve(comment) ? (
+                          <Button
+                            type="button"
+                            variant="transparent"
+                            size="compact-xs"
+                            leftSection={<IconCheck size={14} />}
+                            classNames={{ root: classes.resolveBtn }}
+                            loading={resolveMutation.isPending}
+                            disabled={busy}
+                            onClick={() => handleResolve(comment)}
+                          >
+                            Çöz
+                          </Button>
+                        ) : null}
+
+                        {canShowEdit(comment) ? (
+                          <Button
+                            type="button"
+                            variant="transparent"
+                            size="compact-xs"
+                            leftSection={<IconPencil size={14} />}
+                            classNames={{ root: classes.editBtn }}
+                            disabled={busy}
+                            onClick={() => handleStartEdit(comment)}
+                          >
+                            Düzenle
+                          </Button>
+                        ) : null}
+
+                        {canShowDelete(comment) ? (
+                          <Button
+                            type="button"
+                            variant="transparent"
+                            size="compact-xs"
+                            leftSection={<IconTrash size={14} />}
+                            classNames={{ root: classes.dangerBtn }}
+                            loading={
+                              deleteMutation.isPending && deleteMutation.variables === comment.id
+                            }
+                            disabled={busy}
+                            onClick={() => handleDelete(comment)}
+                          >
+                            Sil
+                          </Button>
+                        ) : null}
+                      </Box>
+                    </Box>
+                  </Box>
+                );
+              })}
+            </Box>
           ) : null}
         </>
       ) : null}

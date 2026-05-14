@@ -34,6 +34,10 @@ body,
   text-decoration: underline;
 }
 
+.flowdocs-text-strikethrough {
+  text-decoration: line-through;
+}
+
 .flowdocs-heading-h1 {
   font-size: 1.8rem;
   line-height: 1.25;
@@ -57,3 +61,26 @@ body,
 .flowdocs-list-item {
   margin: 0.15em 0;
 }
+
+/* Lexical editor surface (visual only; does not affect persistence) */
+.flowdocs-editor-content {
+  color: #e2e4f0;
+  font-size: 1.05rem;
+  line-height: 1.75;
+  letter-spacing: 0.01em;
+}
+
+.flowdocs-editor-content:focus {
+  outline: none;
+}
+
+/* White paper document surface inside editor shell */
+.flowdocs-document-page .flowdocs-editor-content {
+  color: #111827;
+}
+
+.flowdocs-document-page .flowdocs-heading-h1,
+.flowdocs-document-page .flowdocs-heading-h2 {
+  color: #111827;
+}
+
