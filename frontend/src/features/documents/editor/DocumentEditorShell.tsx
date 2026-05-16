@@ -15,13 +15,34 @@ import {
   Group,
   Indicator,
   ScrollArea,
+  Popover,
   Select,
   Stack,
   Tabs,
   Text,
+  Tooltip,
+  UnstyledButton,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
+import {
+  IconArrowBackUp,
+  IconArrowForwardUp,
+  IconBold,
+  IconCode,
+  IconCodeDots,
+  IconHighlight,
+  IconItalic,
+  IconLetterA,
+  IconLink,
+  IconList,
+  IconListNumbers,
+  IconPhotoPlus,
+  IconStrikethrough,
+  IconTable,
+  IconUnderline,
+} from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { $createCodeNode, $isCodeNode, CodeHighlightNode, CodeNode } from '@lexical/code';
 import { $createHeadingNode, $isHeadingNode, HeadingNode } from '@lexical/rich-text';
 import {
   $isListNode,
@@ -55,6 +76,7 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type MutableRefObject,
   type ReactNode,
 } from 'react';
 import * as Y from 'yjs';
@@ -79,6 +101,32 @@ import editorShell from './DocumentEditorShell.module.css';
 import { PresenceActivityFeed } from './PresenceActivityFeed';
 import type { DocumentEditorShellPresenceActivity } from './presenceActivityUtils';
 export type { DocumentEditorShellPresenceActivity } from './presenceActivityUtils';
+import {
+  editorStateContainsCodeFormat,
+  logCodeFormatApplied,
+  logRestoredContainsCode,
+  logSerializedContainsCode,
+  serializedContainsCodeFormat,
+} from './codeFormatUtils';
+import {
+  getCodeBlockTextLengthFromEditor,
+  getCodeBlockTextLengthFromSerialized,
+  logCodeBlockFallbackBecauseMissing,
+  logCodeBlockTextLength,
+  logRestoredCodeBlockTextLength,
+  logSerializedContainsCodeBlock,
+  normalizeSerializedCodeBlocks,
+  serializedContainsCodeBlock,
+} from './codeBlockUtils';
+import {
+  applyActiveInsertionTextColor,
+  applyTextColorInEditor,
+  insertionColorDiffersFromActive,
+  normalizeTextColor,
+  readStoredActiveTextColor,
+  TEXT_COLOR_PALETTE,
+  writeStoredActiveTextColor,
+} from './textColorFormatting';
 
 function initialsFromName(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -88,11 +136,33 @@ function initialsFromName(name: string): string {
 }
 
 type PersistStatus = 'idle' | 'saving' | 'saved' | 'error';
-type ToolbarBlockType = 'paragraph' | 'h1' | 'h2' | 'ul' | 'ol';
+type ToolbarBlockType = 'paragraph' | 'h1' | 'h2' | 'ul' | 'ol' | 'code';
 const LOAD_ORIGIN = 'load';
 const EDITOR_ORIGIN = 'editor';
 const REMOTE_ORIGIN = 'remote';
 const SYNC_FROM_YJS_TAG = 'sync-from-yjs';
+
+function devRealtimeDebugLog(message: string, data?: Record<string, unknown>): void {
+  if (!import.meta.env.DEV) return;
+  if (data) {
+    // eslint-disable-next-line no-console -- dev-only collaborative sync tracing
+    console.log('[realtime-debug]', message, data);
+  } else {
+    // eslint-disable-next-line no-console -- dev-only collaborative sync tracing
+    console.log('[realtime-debug]', message);
+  }
+}
+
+function devRestoreDebugLog(message: string, data?: Record<string, unknown>): void {
+  if (!import.meta.env.DEV) return;
+  if (data) {
+    // eslint-disable-next-line no-console -- dev-only document restore tracing
+    console.log('[restore-debug]', message, data);
+  } else {
+    // eslint-disable-next-line no-console -- dev-only document restore tracing
+    console.log('[restore-debug]', message);
+  }
+}
 
 const EDITOR_THEME = {
   text: {
@@ -100,6 +170,7 @@ const EDITOR_THEME = {
     italic: 'flowdocs-text-italic',
     underline: 'flowdocs-text-underline',
     strikethrough: 'flowdocs-text-strikethrough',
+    code: 'flowdocs-text-code',
   },
   heading: {
     h1: 'flowdocs-heading-h1',
@@ -110,6 +181,7 @@ const EDITOR_THEME = {
     ol: 'flowdocs-list-ol',
     listitem: 'flowdocs-list-item',
   },
+  code: 'flowdocs-code-block',
 };
 
 interface ActiveUser {
@@ -158,6 +230,7 @@ interface DocumentUpdateEvent {
   documentId: string;
   updateBase64: string;
   sourceClientId?: string;
+  editorStateJson?: string;
 }
 
 interface DocumentMemberUpdatedEvent {
@@ -436,16 +509,23 @@ function isValidSerializedLexicalState(value: string): boolean {
   return Array.isArray(normalized.root.children);
 }
 
+function hasRichLexicalSnapshot(
+  serialized: string | null | undefined,
+): serialized is string {
+  return typeof serialized === 'string' && serialized.length > 0 && isValidSerializedLexicalState(serialized);
+}
+
 function tryApplySerializedLexicalState(
   editor: LexicalEditor,
   serialized: string,
 ): boolean {
-  if (!isValidSerializedLexicalState(serialized)) {
+  const normalizedSerialized = normalizeSerializedCodeBlocks(serialized);
+  if (!isValidSerializedLexicalState(normalizedSerialized)) {
     return false;
   }
 
   try {
-    const parsed = extractSerializedLexicalRoot(serialized) as Parameters<
+    const parsed = extractSerializedLexicalRoot(normalizedSerialized) as Parameters<
       LexicalEditor['parseEditorState']
     >[0] | null;
     if (!parsed) return false;
@@ -467,11 +547,83 @@ function replaceYTextValue(ytext: Y.Text, value: string): void {
   }
 }
 
+interface DocumentRestorePayload {
+  editorStateJson: string;
+  previewPlainText: string;
+  allowEmptyPublish: boolean;
+}
+
+function readLexicalRootMetrics(editor: LexicalEditor): {
+  rootTextLength: number;
+  childCount: number;
+} {
+  return editor.getEditorState().read(() => {
+    const root = $getRoot();
+    return {
+      rootTextLength: root.getTextContent().length,
+      childCount: root.getChildren().length,
+    };
+  });
+}
+
+function logYjsRestoreState(ytext: Y.Text, ylexicalState: Y.Map<string>): void {
+  const serialized = ylexicalState.get('serialized');
+  const plain = ytext.toString();
+  devRestoreDebugLog('yjs after apply', {
+    ytextLength: plain.length,
+    hasSerialized: typeof serialized === 'string' && serialized.length > 0,
+    hasRichSerialized: hasRichLexicalSnapshot(serialized),
+    plainTextLength: plain.length,
+  });
+}
+
+function syncEditorStateToYjs(
+  editor: LexicalEditor,
+  ydoc: Y.Doc,
+  ytext: Y.Text,
+  ylexicalState: Y.Map<string>,
+  lastAppliedRef: MutableRefObject<string | null>,
+  origin: unknown = LOAD_ORIGIN,
+): void {
+  const nextText = editor.getEditorState().read(() => readEditorText());
+  const nextSerialized = normalizeSerializedCodeBlocks(
+    JSON.stringify(editor.getEditorState().toJSON()),
+  );
+  ydoc.transact(() => {
+    replaceYTextValue(ytext, nextText);
+    ylexicalState.set('serialized', nextSerialized);
+  }, origin);
+  lastAppliedRef.current = nextSerialized;
+}
+
+function applyYjsSnapshotToLexical(
+  editor: LexicalEditor,
+  ytext: Y.Text,
+  ylexicalState: Y.Map<string>,
+  lastAppliedRef: MutableRefObject<string | null>,
+): void {
+  const serializedState = ylexicalState.get('serialized');
+  if (hasRichLexicalSnapshot(serializedState)) {
+    if (tryApplySerializedLexicalState(editor, serializedState)) {
+      lastAppliedRef.current = serializedState;
+    }
+    return;
+  }
+
+  const nextText = ytext.toString();
+  const lexicalRecovery = recoverPlainTextFromLexicalSerialized(nextText);
+  const textToWrite = lexicalRecovery.isLexicalSerialized
+    ? lexicalRecovery.plainText
+    : nextText;
+  editor.update(() => writeEditorText(textToWrite), { tag: SYNC_FROM_YJS_TAG });
+}
+
 interface YjsLexicalBridgePluginProps {
   ydoc: Y.Doc;
   ytext: Y.Text;
   ylexicalState: Y.Map<string>;
   canEdit: boolean;
+  restorePayload: DocumentRestorePayload;
 }
 
 function YjsLexicalBridgePlugin({
@@ -479,36 +631,131 @@ function YjsLexicalBridgePlugin({
   ytext,
   ylexicalState,
   canEdit,
+  restorePayload,
 }: YjsLexicalBridgePluginProps) {
   const [editor] = useLexicalComposerContext();
   const lastAppliedSerializedRef = useRef<string | null>(null);
+  const restoreCompleteRef = useRef(false);
+  const allowEmptyPublishRef = useRef(restorePayload.allowEmptyPublish);
 
   useEffect(() => {
-    const syncFromYjs = (origin?: unknown) => {
-      if (origin === EDITOR_ORIGIN) return;
+    allowEmptyPublishRef.current = restorePayload.allowEmptyPublish;
+  }, [restorePayload.allowEmptyPublish]);
+
+  useEffect(() => {
+    restoreCompleteRef.current = false;
+    const originLabel = (origin?: unknown) =>
+      origin === LOAD_ORIGIN
+        ? 'load'
+        : origin === EDITOR_ORIGIN
+          ? 'editor'
+          : origin === REMOTE_ORIGIN
+            ? 'remote'
+            : String(origin ?? 'unknown');
+
+    interface SyncFromYjsOptions {
+      origin?: unknown;
+      source?: 'ytext' | 'ylexical' | 'init';
+      forceApply?: boolean;
+      onRestored?: () => void;
+    }
+
+    const syncFromYjs = (options: SyncFromYjsOptions = {}) => {
+      const { origin, source = 'init', forceApply: forceApplyOverride, onRestored } = options;
+      const forceApply = forceApplyOverride ?? origin === REMOTE_ORIGIN;
+      const finishRestore = onRestored;
+
+      devRealtimeDebugLog('syncFromYjs start', {
+        origin: originLabel(origin),
+        source,
+        forceApply,
+      });
+
+      if (origin === EDITOR_ORIGIN) {
+        devRealtimeDebugLog('syncFromYjs skipped', { reason: 'editor-origin' });
+        return;
+      }
 
       const serializedState = ylexicalState.get('serialized');
-      if (
-        typeof serializedState === 'string' &&
-        serializedState.length > 0 &&
-        serializedState !== lastAppliedSerializedRef.current &&
-        tryApplySerializedLexicalState(editor, serializedState)
-      ) {
-        lastAppliedSerializedRef.current = serializedState;
+      const richSnapshotInYjs = hasRichLexicalSnapshot(serializedState);
+
+      if (richSnapshotInYjs) {
+        const editorSerialized = JSON.stringify(editor.getEditorState().toJSON());
+        const yjsCodeBlockLen = getCodeBlockTextLengthFromSerialized(serializedState);
+        const editorCodeBlockLen = getCodeBlockTextLengthFromEditor(editor);
+        const codeBlockContentStale = yjsCodeBlockLen > editorCodeBlockLen;
+        const needsLexicalApply =
+          forceApply ||
+          serializedState !== lastAppliedSerializedRef.current ||
+          editorSerialized !== serializedState ||
+          codeBlockContentStale;
+        const shouldApply = needsLexicalApply;
+
+        devRealtimeDebugLog(
+          forceApply
+            ? 'syncFromYjs path: rich serialized forceApply'
+            : 'syncFromYjs path: rich serialized',
+          {
+            origin: originLabel(origin),
+            forceApply,
+            needsLexicalApply,
+            shouldApply,
+            codeBlockContentStale,
+            yjsCodeBlockLen,
+            editorCodeBlockLen,
+            serializedLen: serializedState.length,
+            lastAppliedLen: lastAppliedSerializedRef.current?.length ?? 0,
+          },
+        );
+
+        if (shouldApply) {
+          if (tryApplySerializedLexicalState(editor, serializedState)) {
+            lastAppliedSerializedRef.current = serializedState;
+            devRealtimeDebugLog('lexical editor state applied', {
+              origin: originLabel(origin),
+              forceApply,
+              path: 'rich-serialized',
+            });
+            finishRestore?.();
+          } else {
+            devRealtimeDebugLog('syncFromYjs skipped', {
+              reason: 'rich-serialized-apply-failed',
+              origin: originLabel(origin),
+              forceApply,
+            });
+          }
+        } else {
+          devRealtimeDebugLog('syncFromYjs skipped', {
+            reason: 'rich-serialized-already-in-sync',
+            origin: originLabel(origin),
+            forceApply,
+          });
+          finishRestore?.();
+        }
+
+        // Never fall back to plain ytext while Yjs carries a rich Lexical snapshot (preserves colors).
         return;
       }
 
       const nextText = ytext.toString();
       const lexicalRecovery = recoverPlainTextFromLexicalSerialized(nextText);
       if (lexicalRecovery.isLexicalSerialized) {
+        devRealtimeDebugLog('syncFromYjs path: recovered plain text', {
+          origin: originLabel(origin),
+          forceApply,
+          ytextLen: nextText.length,
+        });
         const recoveredText = lexicalRecovery.plainText;
         editor.update(
           () => {
             const currentText = readEditorText();
-            if (currentText === recoveredText) return;
+            if (currentText === recoveredText && !forceApply) return;
             writeEditorText(recoveredText);
           },
-          { tag: SYNC_FROM_YJS_TAG },
+          {
+            tag: SYNC_FROM_YJS_TAG,
+            onUpdate: () => finishRestore?.(),
+          },
         );
 
         if (nextText !== recoveredText && canEdit) {
@@ -516,42 +763,194 @@ function YjsLexicalBridgePlugin({
             replaceYTextValue(ytext, recoveredText);
           }, EDITOR_ORIGIN);
         }
+        devRealtimeDebugLog('lexical editor state applied', {
+          origin: originLabel(origin),
+          forceApply,
+          path: 'recovered-plain-text',
+        });
         return;
       }
+
+      devRealtimeDebugLog('syncFromYjs path: plain ytext', {
+        origin: originLabel(origin),
+        forceApply,
+        ytextLen: nextText.length,
+      });
 
       editor.update(
         () => {
           const currentText = readEditorText();
-          if (currentText === nextText) return;
+          if (currentText === nextText && !forceApply) {
+            devRealtimeDebugLog('syncFromYjs skipped', {
+              reason: 'plain-ytext-editor-already-matches',
+              origin: originLabel(origin),
+              forceApply,
+            });
+            return;
+          }
           writeEditorText(nextText);
         },
-        { tag: SYNC_FROM_YJS_TAG },
+        {
+          tag: SYNC_FROM_YJS_TAG,
+          onUpdate: () => finishRestore?.(),
+        },
       );
+
+      devRealtimeDebugLog('lexical editor state applied', {
+        origin: originLabel(origin),
+        forceApply,
+        path: 'plain-ytext',
+      });
     };
 
-    syncFromYjs();
+    let cancelled = false;
+
+    const runInitialRestore = () => {
+      if (cancelled) return;
+
+      applyYjsSnapshotToLexical(editor, ytext, ylexicalState, lastAppliedSerializedRef);
+      let metrics = readLexicalRootMetrics(editor);
+      devRestoreDebugLog('lexical after restore', metrics);
+
+      const apiCodeBlockTextLen = getCodeBlockTextLengthFromSerialized(
+        restorePayload.editorStateJson,
+      );
+      let lexicalCodeBlockTextLen = getCodeBlockTextLengthFromEditor(editor);
+      logCodeBlockTextLength('after-yjs-restore', lexicalCodeBlockTextLen);
+      if (serializedContainsCodeBlock(restorePayload.editorStateJson)) {
+        logCodeBlockTextLength('api-editorStateJson', apiCodeBlockTextLen);
+      }
+
+      const apiHasCode = serializedContainsCodeFormat(restorePayload.editorStateJson);
+      const lexicalHasCode = editorStateContainsCodeFormat(editor);
+      const needsCodeBlockFallback =
+        apiCodeBlockTextLen > 0 && lexicalCodeBlockTextLen < apiCodeBlockTextLen;
+      const needsEditorStateJsonFallback =
+        restorePayload.editorStateJson.length > 0 &&
+        (metrics.rootTextLength === 0 ||
+          (apiHasCode && !lexicalHasCode) ||
+          needsCodeBlockFallback);
+
+      if (needsEditorStateJsonFallback) {
+        if (needsCodeBlockFallback) {
+          logCodeBlockFallbackBecauseMissing();
+        }
+        devRestoreDebugLog('applying lexical editorStateJson fallback', {
+          reason: metrics.rootTextLength === 0
+            ? 'empty-root'
+            : needsCodeBlockFallback
+              ? 'code-block-text'
+              : 'code-format',
+        });
+        if (tryApplySerializedLexicalState(editor, restorePayload.editorStateJson)) {
+          lastAppliedSerializedRef.current = restorePayload.editorStateJson;
+          syncEditorStateToYjs(
+            editor,
+            ydoc,
+            ytext,
+            ylexicalState,
+            lastAppliedSerializedRef,
+            LOAD_ORIGIN,
+          );
+        }
+        metrics = readLexicalRootMetrics(editor);
+        lexicalCodeBlockTextLen = getCodeBlockTextLengthFromEditor(editor);
+        devRestoreDebugLog('lexical after restore', {
+          ...metrics,
+          pass: 'editorStateJson-fallback',
+          codeBlockTextLen: lexicalCodeBlockTextLen,
+        });
+      }
+
+      if (metrics.rootTextLength === 0 && restorePayload.previewPlainText.length > 0) {
+        devRestoreDebugLog('applying lexical previewContent fallback');
+        editor.update(() => writeEditorText(restorePayload.previewPlainText), {
+          tag: SYNC_FROM_YJS_TAG,
+        });
+        syncEditorStateToYjs(
+          editor,
+          ydoc,
+          ytext,
+          ylexicalState,
+          lastAppliedSerializedRef,
+          LOAD_ORIGIN,
+        );
+        metrics = readLexicalRootMetrics(editor);
+        devRestoreDebugLog('lexical after restore', { ...metrics, pass: 'preview-fallback' });
+      }
+
+      logRestoredCodeBlockTextLength(editor);
+      devRestoreDebugLog('restore completed', metrics);
+      logRestoredContainsCode(editor);
+      restoreCompleteRef.current = true;
+    };
+
+    // Defer Lexical state writes past commit — avoids flushSync-in-lifecycle warning.
+    queueMicrotask(runInitialRestore);
+
     const onTextObserve = (event: Y.YTextEvent) => {
-      syncFromYjs(event.transaction.origin);
+      devRealtimeDebugLog('yjs observe fired', {
+        target: 'ytext',
+        origin: originLabel(event.transaction.origin),
+      });
+      syncFromYjs({
+        origin: event.transaction.origin,
+        source: 'ytext',
+        forceApply: event.transaction.origin === REMOTE_ORIGIN,
+      });
     };
     const onLexicalObserve = (event: Y.YMapEvent<string>) => {
-      syncFromYjs(event.transaction.origin);
+      devRealtimeDebugLog('yjs observe fired', {
+        target: 'ylexicalState',
+        origin: originLabel(event.transaction.origin),
+        keys: event.keysChanged.size,
+      });
+      syncFromYjs({
+        origin: event.transaction.origin,
+        source: 'ylexical',
+        forceApply: event.transaction.origin === REMOTE_ORIGIN,
+      });
     };
     ytext.observe(onTextObserve);
     ylexicalState.observe(onLexicalObserve);
 
     return () => {
+      cancelled = true;
       ytext.unobserve(onTextObserve);
       ylexicalState.unobserve(onLexicalObserve);
     };
-  }, [canEdit, editor, ydoc, ylexicalState, ytext]);
+  }, [canEdit, editor, restorePayload, ydoc, ylexicalState, ytext]);
 
   useEffect(() => {
     return editor.registerUpdateListener(({ editorState, tags }) => {
-      if (tags.has(SYNC_FROM_YJS_TAG)) return;
-      if (!canEdit) return;
+      if (tags.has(SYNC_FROM_YJS_TAG)) {
+        devRealtimeDebugLog('local lexical update skipped', { reason: 'sync-from-yjs-tag' });
+        return;
+      }
+      if (!restoreCompleteRef.current) {
+        devRestoreDebugLog('blocked empty initial publish');
+        return;
+      }
+      if (!canEdit) {
+        devRealtimeDebugLog('local lexical update skipped', { reason: 'view-only' });
+        return;
+      }
+
+      devRealtimeDebugLog('local lexical update detected');
 
       const nextText = editorState.read(() => readEditorText());
-      const nextSerialized = JSON.stringify(editorState.toJSON());
+      const nextSerialized = normalizeSerializedCodeBlocks(JSON.stringify(editorState.toJSON()));
+
+      if (nextText.trim().length === 0 && !allowEmptyPublishRef.current) {
+        const yjsPlain = ytext.toString().trim();
+        const yjsSerialized = ylexicalState.get('serialized');
+        const yjsHasContent =
+          yjsPlain.length > 0 || hasRichLexicalSnapshot(yjsSerialized);
+        if (yjsHasContent) {
+          devRestoreDebugLog('blocked empty publish', { reason: 'yjs-has-content' });
+          return;
+        }
+      }
 
       const hasExistingText = ytext.toString().trim().length > 0;
       const existingSerialized = ylexicalState.get('serialized');
@@ -569,52 +968,181 @@ function YjsLexicalBridgePlugin({
         (hasExistingText || hasExistingSerializedText) &&
         !serializedChanged
       ) {
+        devRealtimeDebugLog('local lexical update skipped', {
+          reason: 'empty-text-guard',
+        });
         return;
       }
 
       const isTextUnchanged = nextText === ytext.toString();
       const isSerializedUnchanged = ylexicalState.get('serialized') === nextSerialized;
-      if (isTextUnchanged && isSerializedUnchanged) return;
+      if (isTextUnchanged && isSerializedUnchanged) {
+        devRealtimeDebugLog('local lexical update skipped', {
+          reason: 'yjs-already-matches',
+        });
+        return;
+      }
 
       ydoc.transact(() => {
         replaceYTextValue(ytext, nextText);
         ylexicalState.set('serialized', nextSerialized);
       }, EDITOR_ORIGIN);
       lastAppliedSerializedRef.current = nextSerialized;
+      logSerializedContainsCode(nextSerialized);
+      devRealtimeDebugLog('yjs update produced', {
+        textLen: nextText.length,
+        serializedLen: nextSerialized.length,
+      });
     });
   }, [canEdit, editor, ydoc, ylexicalState, ytext]);
 
   return null;
 }
 
-interface ToolbarButtonProps {
+function ToolbarDivider() {
+  return <span className={editorShell.toolbarDivider} aria-hidden />;
+}
+
+interface ToolbarIconButtonProps {
   label: string;
   active?: boolean;
   disabled?: boolean;
-  onClick: () => void;
+  uiOnly?: boolean;
+  onClick?: () => void;
+  children: ReactNode;
 }
 
-function ToolbarButton({ label, active, disabled, onClick }: ToolbarButtonProps) {
+function ToolbarIconButton({
+  label,
+  active,
+  disabled,
+  uiOnly,
+  onClick,
+  children,
+}: ToolbarIconButtonProps) {
+  const isDisabled = disabled || uiOnly;
   return (
-    <span className={editorShell.toolbarBtn}>
-      <Button
+    <Tooltip label={label} withArrow position="bottom" openDelay={350}>
+      <UnstyledButton
         type="button"
-        size="compact-xs"
-        variant={active ? 'light' : 'subtle'}
-        disabled={disabled}
+        className={`${editorShell.toolbarIconBtn}${active ? ` ${editorShell.toolbarIconBtnActive}` : ''}${uiOnly ? ` ${editorShell.toolbarIconBtnUiOnly}` : ''}`}
+        disabled={isDisabled}
         data-flowdocs-toolbar-active={active ? '' : undefined}
+        aria-label={label}
         onMouseDown={(e) => e.preventDefault()}
-        onClick={onClick}
-        styles={{
-          root: {
-            fontWeight: active ? 600 : 500,
-            border: '1px solid transparent',
-          },
-        }}
+        onClick={isDisabled ? undefined : onClick}
       >
-        {label}
-      </Button>
-    </span>
+        {children}
+      </UnstyledButton>
+    </Tooltip>
+  );
+}
+
+function ToolbarColorPreviewButton({
+  label,
+  disabled,
+  uiOnly,
+  previewColor,
+  icon,
+}: {
+  label: string;
+  disabled?: boolean;
+  uiOnly?: boolean;
+  previewColor: string;
+  icon: ReactNode;
+}) {
+  return (
+    <ToolbarIconButton label={label} disabled={disabled} uiOnly={uiOnly}>
+      <span className={editorShell.toolbarColorBtnInner}>
+        {icon}
+        <span
+          className={editorShell.toolbarColorPreview}
+          style={{ backgroundColor: previewColor }}
+          aria-hidden
+        />
+      </span>
+    </ToolbarIconButton>
+  );
+}
+
+function ToolbarTextColorButton({
+  disabled,
+  activeTextColor,
+  onActiveTextColorChange,
+  editor,
+  lastSelectionRef,
+}: {
+  disabled?: boolean;
+  activeTextColor: string;
+  onActiveTextColorChange: (color: string) => void;
+  editor: LexicalEditor;
+  lastSelectionRef: React.MutableRefObject<RangeSelection | null>;
+}) {
+  const [opened, setOpened] = useState(false);
+
+  const handlePick = (color: string) => {
+    const normalized = normalizeTextColor(color);
+    onActiveTextColorChange(normalized);
+    applyTextColorInEditor(editor, normalized, lastSelectionRef.current);
+    editor.focus();
+    setOpened(false);
+  };
+
+  return (
+    <Popover
+      opened={opened}
+      onChange={setOpened}
+      position="bottom"
+      withArrow
+      shadow="md"
+      withinPortal
+      zIndex={500}
+      disabled={disabled}
+    >
+      <Popover.Target>
+        <Tooltip label="Yazı rengi" withArrow position="bottom" openDelay={350}>
+          <UnstyledButton
+            type="button"
+            className={editorShell.toolbarIconBtn}
+            disabled={disabled}
+            aria-label="Yazı rengi"
+            aria-expanded={opened}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => !disabled && setOpened((o) => !o)}
+          >
+            <span className={editorShell.toolbarColorBtnInner}>
+              <IconLetterA size={18} stroke={2} />
+              <span
+                className={editorShell.toolbarColorPreview}
+                style={{ backgroundColor: activeTextColor }}
+                aria-hidden
+              />
+            </span>
+          </UnstyledButton>
+        </Tooltip>
+      </Popover.Target>
+      <Popover.Dropdown className={editorShell.textColorPopover}>
+        <Text className={editorShell.textColorPopoverTitle}>Metin rengi</Text>
+        <div className={editorShell.textColorGrid} role="listbox" aria-label="Metin rengi">
+          {TEXT_COLOR_PALETTE.map((color) => {
+            const selected = normalizeTextColor(activeTextColor) === normalizeTextColor(color);
+            return (
+              <button
+                key={color}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                className={`${editorShell.textColorSwatch}${selected ? ` ${editorShell.textColorSwatchSelected}` : ''}`}
+                style={{ backgroundColor: color }}
+                title={color}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => handlePick(color)}
+              />
+            );
+          })}
+        </div>
+      </Popover.Dropdown>
+    </Popover>
   );
 }
 
@@ -636,14 +1164,25 @@ function EditorToolbarPlugin({
   const [isItalic, setIsItalic] = useState(false);
   const [isUnderline, setIsUnderline] = useState(false);
   const [isStrikethrough, setIsStrikethrough] = useState(false);
+  const [isCode, setIsCode] = useState(false);
   const [blockType, setBlockType] = useState<ToolbarBlockType>('paragraph');
+  const [activeTextColor, setActiveTextColor] = useState(() => readStoredActiveTextColor());
+  const activeTextColorRef = useRef(activeTextColor);
   const lastSelectionRef = useRef<RangeSelection | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const setActiveTextColorBoth = useCallback((color: string) => {
+    const normalized = normalizeTextColor(color);
+    activeTextColorRef.current = normalized;
+    setActiveTextColor(normalized);
+    writeStoredActiveTextColor(normalized);
+  }, []);
 
   useEffect(() => {
     return editor.registerCommand(
       SELECTION_CHANGE_COMMAND,
       () => {
+        let shouldSyncInsertionColor = false;
         editor.getEditorState().read(() => {
           const selection = $getSelection();
           if (!$isRangeSelection(selection)) return;
@@ -652,6 +1191,15 @@ function EditorToolbarPlugin({
           setIsItalic(selection.hasFormat('italic'));
           setIsUnderline(selection.hasFormat('underline'));
           setIsStrikethrough(selection.hasFormat('strikethrough'));
+          setIsCode(selection.hasFormat('code'));
+
+          if (
+            !disabled &&
+            selection.isCollapsed() &&
+            insertionColorDiffersFromActive(selection, activeTextColorRef.current)
+          ) {
+            shouldSyncInsertionColor = true;
+          }
 
           const anchorNode = selection.anchor.getNode();
           const topLevel = anchorNode.getTopLevelElementOrThrow();
@@ -666,13 +1214,26 @@ function EditorToolbarPlugin({
             return;
           }
 
+          if ($isCodeNode(topLevel)) {
+            setBlockType('code');
+            return;
+          }
+
           setBlockType('paragraph');
         });
+
+        if (shouldSyncInsertionColor) {
+          devRealtimeDebugLog('activeTextColor insertion patch called', {
+            color: activeTextColorRef.current,
+          });
+          applyActiveInsertionTextColor(editor, activeTextColorRef.current);
+        }
+
         return false;
       },
       COMMAND_PRIORITY_LOW,
     );
-  }, [editor]);
+  }, [disabled, editor]);
 
   const withSelection = (action: (selection: RangeSelection) => void) => {
     editor.focus();
@@ -688,9 +1249,12 @@ function EditorToolbarPlugin({
     });
   };
 
-  const formatText = (format: 'bold' | 'italic' | 'underline' | 'strikethrough') => {
+  const formatText = (format: 'bold' | 'italic' | 'underline' | 'strikethrough' | 'code') => {
     withSelection(() => {
       editor.dispatchCommand(FORMAT_TEXT_COMMAND, format);
+      if (format === 'code') {
+        logCodeFormatApplied();
+      }
     });
   };
 
@@ -703,6 +1267,12 @@ function EditorToolbarPlugin({
   const applyParagraph = () => {
     withSelection((selection) => {
       $setBlocksType(selection, () => $createParagraphNode());
+    });
+  };
+
+  const applyCodeBlock = () => {
+    withSelection((selection) => {
+      $setBlocksType(selection, () => $createCodeNode());
     });
   };
 
@@ -723,8 +1293,14 @@ function EditorToolbarPlugin({
       if (selection.hasFormat('strikethrough')) {
         editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'strikethrough');
       }
-      $setBlocksType(selection, () => $createParagraphNode());
-      editor.dispatchCommand(REMOVE_LIST_COMMAND, undefined);
+      if (selection.hasFormat('code')) {
+        editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'code');
+      }
+      const topLevel = selection.anchor.getNode().getTopLevelElementOrThrow();
+      if (!$isCodeNode(topLevel)) {
+        $setBlocksType(selection, () => $createParagraphNode());
+        editor.dispatchCommand(REMOVE_LIST_COMMAND, undefined);
+      }
     });
   };
 
@@ -749,6 +1325,10 @@ function EditorToolbarPlugin({
     }
     if (next === 'ol') {
       applyList('ol');
+      return;
+    }
+    if (next === 'code') {
+      applyCodeBlock();
     }
   };
 
@@ -801,9 +1381,12 @@ function EditorToolbarPlugin({
     });
   };
 
+  const blockSelectValue =
+    blockType === 'h1' || blockType === 'h2' || blockType === 'code' ? blockType : 'paragraph';
+
   return (
     <div className={editorShell.toolbarInner}>
-      <Group className={editorShell.toolbarControls} gap={6} wrap="nowrap" align="center">
+      <div className={editorShell.toolbarControls}>
         <input
           ref={fileInputRef}
           type="file"
@@ -813,60 +1396,165 @@ function EditorToolbarPlugin({
             void handleImageFileSelected(e);
           }}
         />
-        <Select
-          className={editorShell.toolbarSelect}
-          size="xs"
-          w={158}
-          disabled={disabled}
-          allowDeselect={false}
-          comboboxProps={{ withinPortal: true, zIndex: 500 }}
-          value={blockType}
-          onChange={handleBlockSelect}
-          data={[
-            { value: 'paragraph', label: 'Paragraph' },
-            { value: 'h1', label: 'Heading 1' },
-            { value: 'h2', label: 'Heading 2' },
-            { value: 'ul', label: 'Bullet list' },
-            { value: 'ol', label: 'Numbered list' },
-          ]}
-        />
-        <ToolbarButton label="Bold" active={isBold} disabled={disabled} onClick={() => formatText('bold')} />
-        <ToolbarButton label="Italic" active={isItalic} disabled={disabled} onClick={() => formatText('italic')} />
-        <ToolbarButton
-          label="Underline"
-          active={isUnderline}
-          disabled={disabled}
-          onClick={() => formatText('underline')}
-        />
-        <ToolbarButton
-          label="Strike"
-          active={isStrikethrough}
-          disabled={disabled}
-          onClick={() => formatText('strikethrough')}
-        />
-        <ToolbarButton label="H1" active={blockType === 'h1'} disabled={disabled} onClick={() => applyHeading('h1')} />
-        <ToolbarButton label="H2" active={blockType === 'h2'} disabled={disabled} onClick={() => applyHeading('h2')} />
-        <ToolbarButton
-          label="Bullet list"
-          active={blockType === 'ul'}
-          disabled={disabled}
-          onClick={() => applyList('ul')}
-        />
-        <ToolbarButton
-          label="Numbered list"
-          active={blockType === 'ol'}
-          disabled={disabled}
-          onClick={() => applyList('ol')}
-        />
-        <ToolbarButton label="Undo" disabled={disabled} onClick={() => editor.dispatchCommand(UNDO_COMMAND, undefined)} />
-        <ToolbarButton label="Redo" disabled={disabled} onClick={() => editor.dispatchCommand(REDO_COMMAND, undefined)} />
-        <ToolbarButton label="Clear formatting" disabled={disabled} onClick={clearFormatting} />
-        <ToolbarButton
-          label={isUploadingImage ? 'Uploading...' : 'Upload image'}
-          disabled={disabled || isUploadingImage}
-          onClick={handleUploadButton}
-        />
-      </Group>
+        <Group className={editorShell.toolbarScroll} gap={8} wrap="nowrap" align="center">
+          <Select
+            className={editorShell.toolbarSelect}
+            classNames={{
+              input: editorShell.toolbarSelectInput,
+              dropdown: editorShell.toolbarSelectDropdown,
+              option: editorShell.toolbarSelectOption,
+            }}
+            size="xs"
+            w={132}
+            disabled={disabled}
+            allowDeselect={false}
+            comboboxProps={{ withinPortal: true, zIndex: 500 }}
+            value={blockSelectValue}
+            onChange={handleBlockSelect}
+            data={[
+              { value: 'paragraph', label: 'Paragraf' },
+              { value: 'h1', label: 'Başlık 1' },
+              { value: 'h2', label: 'Başlık 2' },
+              { value: 'code', label: 'Kod Bloğu' },
+            ]}
+          />
+
+          <ToolbarDivider />
+
+          <Group className={editorShell.toolbarGroup} gap={4} wrap="nowrap">
+            <ToolbarIconButton
+              label="Kalın"
+              active={isBold}
+              disabled={disabled}
+              onClick={() => formatText('bold')}
+            >
+              <IconBold size={18} stroke={2} />
+            </ToolbarIconButton>
+            <ToolbarIconButton
+              label="İtalik"
+              active={isItalic}
+              disabled={disabled}
+              onClick={() => formatText('italic')}
+            >
+              <IconItalic size={18} stroke={2} />
+            </ToolbarIconButton>
+            <ToolbarIconButton
+              label="Altı çizili"
+              active={isUnderline}
+              disabled={disabled}
+              onClick={() => formatText('underline')}
+            >
+              <IconUnderline size={18} stroke={2} />
+            </ToolbarIconButton>
+            <ToolbarIconButton
+              label="Üstü çizili"
+              active={isStrikethrough}
+              disabled={disabled}
+              onClick={() => formatText('strikethrough')}
+            >
+              <IconStrikethrough size={18} stroke={2} />
+            </ToolbarIconButton>
+          </Group>
+
+          <ToolbarDivider />
+
+          <Group className={editorShell.toolbarGroup} gap={4} wrap="nowrap">
+            <ToolbarIconButton
+              label="Satır içi kod"
+              active={isCode}
+              disabled={disabled}
+              onClick={() => formatText('code')}
+            >
+              <IconCode size={18} stroke={2} />
+            </ToolbarIconButton>
+            <ToolbarIconButton
+              label="Kod Bloğu"
+              active={blockType === 'code'}
+              disabled={disabled}
+              onClick={applyCodeBlock}
+            >
+              <IconCodeDots size={18} stroke={2} />
+            </ToolbarIconButton>
+            <ToolbarIconButton label="Bağlantı" disabled={disabled} uiOnly>
+              <IconLink size={18} stroke={2} />
+            </ToolbarIconButton>
+            <ToolbarIconButton label="Tablo" disabled={disabled} uiOnly>
+              <IconTable size={18} stroke={2} />
+            </ToolbarIconButton>
+          </Group>
+
+          <ToolbarDivider />
+
+          <Group className={editorShell.toolbarGroup} gap={4} wrap="nowrap">
+            <ToolbarIconButton
+              label="Madde listesi"
+              active={blockType === 'ul'}
+              disabled={disabled}
+              onClick={() => applyList('ul')}
+            >
+              <IconList size={18} stroke={2} />
+            </ToolbarIconButton>
+            <ToolbarIconButton
+              label="Numaralı liste"
+              active={blockType === 'ol'}
+              disabled={disabled}
+              onClick={() => applyList('ol')}
+            >
+              <IconListNumbers size={18} stroke={2} />
+            </ToolbarIconButton>
+          </Group>
+
+          <ToolbarDivider />
+
+          <Group className={editorShell.toolbarGroup} gap={4} wrap="nowrap">
+            <ToolbarTextColorButton
+              disabled={disabled}
+              activeTextColor={activeTextColor}
+              onActiveTextColorChange={setActiveTextColorBoth}
+              editor={editor}
+              lastSelectionRef={lastSelectionRef}
+            />
+            <ToolbarColorPreviewButton
+              label="Vurgula"
+              disabled={disabled}
+              uiOnly
+              previewColor="#f0c040"
+              icon={<IconHighlight size={18} stroke={2} />}
+            />
+          </Group>
+
+          <ToolbarDivider />
+
+          <Group className={editorShell.toolbarGroup} gap={4} wrap="nowrap">
+            <ToolbarIconButton
+              label="Geri al"
+              disabled={disabled}
+              onClick={() => editor.dispatchCommand(UNDO_COMMAND, undefined)}
+            >
+              <IconArrowBackUp size={18} stroke={2} />
+            </ToolbarIconButton>
+            <ToolbarIconButton
+              label="Yinele"
+              disabled={disabled}
+              onClick={() => editor.dispatchCommand(REDO_COMMAND, undefined)}
+            >
+              <IconArrowForwardUp size={18} stroke={2} />
+            </ToolbarIconButton>
+            <ToolbarIconButton label="Biçimi temizle" disabled={disabled} onClick={clearFormatting}>
+              <Text span className={editorShell.toolbarClearFmt} fw={700}>
+                Tₓ
+              </Text>
+            </ToolbarIconButton>
+            <ToolbarIconButton
+              label={isUploadingImage ? 'Yükleniyor…' : 'Görsel yükle'}
+              disabled={disabled || isUploadingImage}
+              onClick={handleUploadButton}
+            >
+              <IconPhotoPlus size={18} stroke={2} />
+            </ToolbarIconButton>
+          </Group>
+        </Group>
+      </div>
       {trailing}
     </div>
   );
@@ -904,6 +1592,7 @@ export function DocumentEditorShell({
   const ylexicalState = useMemo(() => ydoc.getMap<string>('lexicalState'), [ydoc]);
 
   const [hydrated, setHydrated] = useState(false);
+  const [restorePayload, setRestorePayload] = useState<DocumentRestorePayload | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [persistStatus, setPersistStatus] = useState<PersistStatus>('idle');
   const [persistMessage, setPersistMessage] = useState<string | null>(null);
@@ -926,17 +1615,29 @@ export function DocumentEditorShell({
   const cursorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorContainerRef = useRef<HTMLDivElement | null>(null);
   const initialContentRef = useRef<unknown>(initialContent);
+  const lastComposerKeyRef = useRef<string | null>(null);
+  const composerKey = `${documentId}-${canEdit ? 'edit' : 'view'}`;
 
   useEffect(() => {
     initialContentRef.current = initialContent;
   }, [documentId, initialContent]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (lastComposerKeyRef.current === composerKey) return;
+    devRealtimeDebugLog('LexicalComposer mount/key change', {
+      composerKey,
+      prevKey: lastComposerKeyRef.current,
+    });
+    lastComposerKeyRef.current = composerKey;
+  }, [hydrated, composerKey]);
 
   const lexicalInitialConfig = useMemo<InitialConfigType>(
     () => ({
       namespace: `flowdocs-document-${documentId}`,
       editable: canEdit,
       theme: EDITOR_THEME,
-      nodes: [HeadingNode, ListNode, ListItemNode, ImageNode],
+      nodes: [HeadingNode, ListNode, ListItemNode, CodeNode, CodeHighlightNode, ImageNode],
       onError(error: Error) {
         throw error;
       },
@@ -948,6 +1649,7 @@ export function DocumentEditorShell({
     let cancelled = false;
 
     setHydrated(false);
+    setRestorePayload(null);
     setLoadError(null);
     setPersistStatus('idle');
     setPersistMessage(null);
@@ -960,41 +1662,104 @@ export function DocumentEditorShell({
         const state = await fetchDocumentState(documentId);
         if (cancelled) return;
 
-        const bytes = base64ToUint8(state.stateUpdateBase64);
-
-        if (bytes.length > 0) {
-          Y.applyUpdate(ydoc, bytes, LOAD_ORIGIN);
-        }
-
         const persistedSerializedState =
           typeof state.editorStateJson === 'string' ? state.editorStateJson : '';
-        const currentSerializedState = ylexicalState.get('serialized');
-        if (
-          (!currentSerializedState || currentSerializedState.trim().length === 0) &&
-          persistedSerializedState.length > 0 &&
-          isValidSerializedLexicalState(persistedSerializedState)
-        ) {
-          ydoc.transact(() => {
-            ylexicalState.set('serialized', persistedSerializedState);
-          }, LOAD_ORIGIN);
+        const bytes = base64ToUint8(state.stateUpdateBase64);
+        const previewPlainText = normalizeFallbackPlainText(initialContentRef.current);
+
+        devRestoreDebugLog('state response', {
+          hasStateUpdateBase64: bytes.length > 0,
+          stateUpdateBase64Length: bytes.byteLength,
+          hasEditorStateJson: persistedSerializedState.length > 0,
+          editorStateJsonLength: persistedSerializedState.length,
+          previewContentLength: previewPlainText.length,
+        });
+
+        if (bytes.length > 0) {
+          devRestoreDebugLog('applying yjs restore');
+          devRealtimeDebugLog('yjs applyUpdate called', {
+            origin: 'load',
+            bytes: bytes.byteLength,
+          });
+          Y.applyUpdate(ydoc, bytes, LOAD_ORIGIN);
+          logYjsRestoreState(ytext, ylexicalState);
         }
 
-        const serializedState = ylexicalState.get('serialized');
-        const hasLexicalSerializedState =
-          typeof serializedState === 'string' &&
-          serializedState.length > 0 &&
-          isValidSerializedLexicalState(serializedState);
+        let yjsSerializedState = ylexicalState.get('serialized');
+        const hasYjsRichSnapshot = hasRichLexicalSnapshot(yjsSerializedState);
+        const hasApiRichSnapshot = hasRichLexicalSnapshot(persistedSerializedState);
+        const apiHasCode = serializedContainsCodeFormat(persistedSerializedState);
+        const yjsHasCode = serializedContainsCodeFormat(yjsSerializedState);
+        const apiCodeBlockTextLen = getCodeBlockTextLengthFromSerialized(persistedSerializedState);
+        const yjsCodeBlockTextLen = getCodeBlockTextLengthFromSerialized(yjsSerializedState);
+        const shouldSeedEditorStateFromApi =
+          hasApiRichSnapshot &&
+          (!hasYjsRichSnapshot ||
+            ytext.toString().trim().length === 0 ||
+            (apiHasCode && !yjsHasCode) ||
+            (apiCodeBlockTextLen > 0 && yjsCodeBlockTextLen < apiCodeBlockTextLen) ||
+            (typeof yjsSerializedState === 'string' &&
+              !yjsSerializedState.includes('"color"') &&
+              persistedSerializedState.includes('"color"')));
 
-        if (!hasLexicalSerializedState && ytext.toString().length === 0) {
-          const fallbackText = normalizeFallbackPlainText(initialContentRef.current);
-          if (fallbackText.length > 0) {
+        if (shouldSeedEditorStateFromApi) {
+          devRestoreDebugLog('applying editorStateJson fallback');
+          devRealtimeDebugLog('editorStateJson seed called');
+          ydoc.transact(() => {
+            ylexicalState.set(
+            'serialized',
+            normalizeSerializedCodeBlocks(persistedSerializedState),
+          );
+          }, LOAD_ORIGIN);
+          yjsSerializedState = persistedSerializedState;
+        } else if (
+          !hasYjsRichSnapshot &&
+          persistedSerializedState.trim().length > 0 &&
+          ytext.toString().length === 0
+        ) {
+          const plainFromApi = normalizeFallbackPlainText(persistedSerializedState);
+          if (plainFromApi.length > 0) {
+            devRestoreDebugLog('applying editorStateJson fallback', { mode: 'plain-text' });
             ydoc.transact(() => {
-              replaceYTextValue(ytext, fallbackText);
+              replaceYTextValue(ytext, plainFromApi);
             }, LOAD_ORIGIN);
           }
         }
 
+        const serializedState = ylexicalState.get('serialized');
+        const hasLexicalSerializedState = hasRichLexicalSnapshot(serializedState);
+
+        if (!hasLexicalSerializedState && ytext.toString().length === 0) {
+          if (previewPlainText.length > 0) {
+            devRestoreDebugLog('applying previewContent fallback', {
+              textLen: previewPlainText.length,
+            });
+            ydoc.transact(() => {
+              replaceYTextValue(ytext, previewPlainText);
+            }, LOAD_ORIGIN);
+          }
+        }
+
+        logYjsRestoreState(ytext, ylexicalState);
+        if (serializedContainsCodeFormat(ylexicalState.get('serialized'))) {
+          logSerializedContainsCode(ylexicalState.get('serialized') ?? '');
+        }
+        logSerializedContainsCodeBlock(ylexicalState.get('serialized') ?? '', { force: true });
+
+        const yjsPlainAfterRestore = ytext.toString().trim();
+        const yjsSerializedAfterRestore = ylexicalState.get('serialized');
+        const allowEmptyPublish =
+          yjsPlainAfterRestore.length === 0 &&
+          !hasRichLexicalSnapshot(yjsSerializedAfterRestore) &&
+          persistedSerializedState.trim().length === 0 &&
+          previewPlainText.length === 0;
+
         if (cancelled) return;
+        setRestorePayload({
+          editorStateJson: persistedSerializedState,
+          previewPlainText,
+          allowEmptyPublish,
+        });
         setHydrated(true);
       } catch (err) {
         if (cancelled) return;
@@ -1096,12 +1861,23 @@ export function DocumentEditorShell({
 
     try {
       const serializedState = ylexicalState.get('serialized');
-      const normalizedSerializedState =
+      let normalizedSerializedState: string | undefined;
+      if (
         typeof serializedState === 'string' &&
         serializedState.length > 0 &&
         isValidSerializedLexicalState(serializedState)
-          ? serializedState
-          : undefined;
+      ) {
+        const candidate = normalizeSerializedCodeBlocks(serializedState);
+        try {
+          JSON.parse(candidate);
+          normalizedSerializedState = candidate;
+        } catch {
+          if (import.meta.env.DEV) {
+            // eslint-disable-next-line no-console -- dev-only persist guard
+            console.warn('[persist-debug] skipped invalid editorStateJson after normalize');
+          }
+        }
+      }
 
       await postDocumentUpdate(documentId, {
         updateBase64: uint8ToBase64(merged),
@@ -1111,6 +1887,14 @@ export function DocumentEditorShell({
           : {}),
       });
 
+      devRealtimeDebugLog('document update sent', {
+        updateBase64Length: uint8ToBase64(merged).length,
+        yjsBytes: merged.byteLength,
+        hasEditorStateJson: Boolean(normalizedSerializedState),
+        editorStateJsonLength: normalizedSerializedState?.length ?? 0,
+        socketEvent: 'document_update',
+        note: 'HTTP persist → server socket broadcast',
+      });
       setPersistStatus('saved');
     } catch (err) {
       setPersistStatus('error');
@@ -1121,6 +1905,18 @@ export function DocumentEditorShell({
   useEffect(() => {
     const onUpdate = (update: Uint8Array, origin: unknown) => {
       setOverlayRevision((v) => v + 1);
+      const originName =
+        origin === LOAD_ORIGIN
+          ? 'load'
+          : origin === REMOTE_ORIGIN
+            ? 'remote'
+            : origin === EDITOR_ORIGIN
+              ? 'editor'
+              : String(origin ?? 'unknown');
+      devRealtimeDebugLog('ydoc.on(update)', {
+        origin: originName,
+        bytes: update.byteLength,
+      });
       if (origin === LOAD_ORIGIN || origin === REMOTE_ORIGIN) return;
       if (!canEdit) return;
 
@@ -1364,23 +2160,59 @@ export function DocumentEditorShell({
     };
 
     const handleDocumentUpdate = (event: DocumentUpdateEvent) => {
-      console.log('[realtime] document_update:', event);
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console -- dev-only realtime tracing
+        console.log('[realtime] document_update:', event);
+      }
 
       if (event.documentId !== documentId) return;
       if (
         event.sourceClientId &&
         event.sourceClientId === String(ydoc.clientID)
       ) {
-        console.log('[realtime] ignored own update');
+        devRealtimeDebugLog('remote update skipped', { reason: 'own-sourceClientId' });
         return;
       }
 
       try {
         const bytes = base64ToUint8(event.updateBase64);
         if (bytes.length === 0) return;
+        devRealtimeDebugLog('remote update received', {
+          updateBase64Length: event.updateBase64.length,
+          bytes: bytes.byteLength,
+          hasEditorStateJson: typeof event.editorStateJson === 'string',
+          editorStateJsonLength:
+            typeof event.editorStateJson === 'string'
+              ? event.editorStateJson.length
+              : 0,
+        });
+        devRealtimeDebugLog('yjs applyUpdate called', {
+          origin: 'remote',
+          bytes: bytes.byteLength,
+        });
         Y.applyUpdate(ydoc, bytes, REMOTE_ORIGIN);
-      } catch {
-        console.warn('[realtime] ignored malformed realtime payload');
+
+        if (
+          typeof event.editorStateJson === 'string' &&
+          event.editorStateJson.length > 0 &&
+          isValidSerializedLexicalState(event.editorStateJson)
+        ) {
+          const normalizedRemote = normalizeSerializedCodeBlocks(event.editorStateJson);
+          ydoc.transact(() => {
+            ylexicalState.set('serialized', normalizedRemote);
+          }, REMOTE_ORIGIN);
+          devRealtimeDebugLog('remote editorStateJson seeded to ylexicalState', {
+            serializedLen: normalizedRemote.length,
+          });
+        }
+      } catch (error) {
+        devRealtimeDebugLog('remote update apply failed', {
+          message: error instanceof Error ? error.message : String(error),
+        });
+        if (import.meta.env.DEV) {
+          // eslint-disable-next-line no-console -- dev-only realtime tracing
+          console.warn('[realtime] ignored malformed realtime payload', error);
+        }
       }
     };
 
@@ -1443,7 +2275,7 @@ export function DocumentEditorShell({
       socketRef.current = null;
       socket.disconnect();
     };
-  }, [accessToken, authUser?.id, documentId, queryClient, ydoc]);
+  }, [accessToken, authUser?.id, documentId, queryClient, ydoc, ylexicalState]);
 
   const syncToolbarTrailing = useMemo(
     () => (
@@ -1533,7 +2365,7 @@ export function DocumentEditorShell({
     );
   }
 
-  if (!hydrated) {
+  if (!hydrated || !restorePayload) {
     return (
       <Text size="sm" style={{ color: '#6b6f85' }}>
         Loading document state...
@@ -1544,7 +2376,7 @@ export function DocumentEditorShell({
   return (
     <Box className={editorShell.root}>
       <LexicalComposer
-        key={`${documentId}-${canEdit ? 'edit' : 'view'}`}
+        key={composerKey}
         initialConfig={lexicalInitialConfig}
       >
         <DocumentEditorCapabilitiesProvider canEdit={canEdit}>
@@ -1835,6 +2667,7 @@ export function DocumentEditorShell({
               ytext={ytext}
               ylexicalState={ylexicalState}
               canEdit={canEdit}
+              restorePayload={restorePayload}
             />
             <CommentSelectionCapturePlugin documentId={documentId} />
             <ImageClipboardPlugin />

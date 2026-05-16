@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Logger,
   Patch,
   Param,
   Post,
@@ -26,6 +27,8 @@ import { DocumentsService } from './documents.service';
 @Controller('documents')
 @UseGuards(JwtAuthGuard)
 export class DocumentsController {
+  private readonly logger = new Logger(DocumentsController.name);
+
   constructor(
     private readonly documentsService: DocumentsService,
     private readonly documentYjsPersistence: DocumentYjsPersistenceService,
@@ -62,6 +65,23 @@ export class DocumentsController {
     @Param('id') id: string,
     @Body() body: ApplyDocumentUpdateDto,
   ) {
+    this.logger.log(
+      JSON.stringify({
+        event: 'document_update_request',
+        documentId: id,
+        updateBase64Length:
+          typeof body.updateBase64 === 'string' ? body.updateBase64.length : 0,
+        hasEditorStateJson: typeof body.editorStateJson === 'string',
+        editorStateJsonLength:
+          typeof body.editorStateJson === 'string'
+            ? body.editorStateJson.length
+            : 0,
+        hasSourceClientId:
+          typeof body.sourceClientId === 'string' &&
+          body.sourceClientId.length > 0,
+      }),
+    );
+
     const result = await this.documentYjsPersistence.applyUpdate(
       user.id,
       id,
@@ -70,10 +90,26 @@ export class DocumentsController {
       body.editorStateJson,
     );
 
+    this.logger.log(
+      JSON.stringify({
+        event: 'socket-debug',
+        action: 'document update persisted, broadcasting',
+        documentId: id,
+        version: result.version,
+        updateBase64Length: body.updateBase64.length,
+        hasEditorStateJson: typeof body.editorStateJson === 'string',
+        editorStateJsonLength:
+          typeof body.editorStateJson === 'string' ? body.editorStateJson.length : 0,
+      }),
+    );
+
     this.realtimeService.publishDocumentUpdate({
       documentId: id,
       updateBase64: body.updateBase64,
       sourceClientId: body.sourceClientId,
+      ...(typeof body.editorStateJson === 'string' && body.editorStateJson.length > 0
+        ? { editorStateJson: body.editorStateJson }
+        : {}),
     });
 
     return result;

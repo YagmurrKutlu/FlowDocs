@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import type { Server } from 'socket.io';
 
 export interface RealtimePresenceUser {
@@ -10,6 +10,8 @@ export interface DocumentUpdateRealtimeEvent {
   documentId: string;
   updateBase64: string;
   sourceClientId?: string;
+  /** Rich Lexical snapshot for peers (opaque JSON string). */
+  editorStateJson?: string;
 }
 
 export interface DocumentMemberUpdatedRealtimeEvent {
@@ -28,6 +30,7 @@ export interface DocumentCursorState {
 
 @Injectable()
 export class RealtimeService {
+  private readonly logger = new Logger(RealtimeService.name);
   private server: Server | null = null;
   private readonly documentPresence = new Map<
     string,
@@ -103,7 +106,25 @@ export class RealtimeService {
 
   publishDocumentUpdate(event: DocumentUpdateRealtimeEvent): void {
     if (!this.server) return;
-    this.server.to(this.roomName(event.documentId)).emit('document_update', event);
+    const room = this.roomName(event.documentId);
+    this.logger.log(
+      JSON.stringify({
+        event: 'socket-debug',
+        action: 'broadcasting document update',
+        documentId: event.documentId,
+        room,
+        updateBase64Length: event.updateBase64.length,
+        hasEditorStateJson: typeof event.editorStateJson === 'string',
+        editorStateJsonLength:
+          typeof event.editorStateJson === 'string'
+            ? event.editorStateJson.length
+            : 0,
+        hasSourceClientId:
+          typeof event.sourceClientId === 'string' &&
+          event.sourceClientId.length > 0,
+      }),
+    );
+    this.server.to(room).emit('document_update', event);
   }
 
   publishDocumentMemberUpdated(event: DocumentMemberUpdatedRealtimeEvent): void {

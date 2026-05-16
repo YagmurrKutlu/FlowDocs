@@ -58,66 +58,225 @@
 
 .toolbarStrip {
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  height: 48px;
+  min-height: 48px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   background: #13151c;
-  padding: 4px 12px;
+  padding: 0 14px;
   overflow-x: auto;
-  scrollbar-width: thin;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.toolbarStrip::-webkit-scrollbar {
+  display: none;
 }
 
 .toolbarInner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: nowrap;
   min-width: min-content;
+  height: 48px;
 }
 
 .toolbarControls {
   flex: 1 1 auto;
   min-width: 0;
+  overflow: hidden;
 }
 
-.toolbarBtn :global(.mantine-Button-root) {
-  height: 28px;
-  min-height: 28px;
-  padding-inline: 8px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--ed-text);
+.toolbarScroll {
+  flex-wrap: nowrap;
+  min-width: min-content;
+}
+
+.toolbarGroup {
+  flex-wrap: nowrap;
+}
+
+.toolbarDivider {
+  flex-shrink: 0;
+  display: inline-block;
+  width: 1px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 0 2px;
+}
+
+.toolbarIconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  min-width: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
   background: transparent;
+  color: #c4c0f0;
+  transition: all 140ms ease;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.toolbarIconBtn:hover:not(:disabled) {
+  background: rgba(91, 82, 181, 0.16);
+  color: #ffffff;
+}
+
+.toolbarIconBtn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.toolbarIconBtnActive,
+.toolbarIconBtn[data-flowdocs-toolbar-active] {
+  background: rgba(91, 82, 181, 0.22);
+  border-color: rgba(91, 82, 181, 0.45);
+  box-shadow:
+    0 0 0 1px rgba(91, 82, 181, 0.25),
+    0 0 18px rgba(91, 82, 181, 0.18);
+  color: #ffffff;
+}
+
+.toolbarIconBtnUiOnly {
+  opacity: 0.55;
+}
+
+.toolbarColorBtnInner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  line-height: 0;
+}
+
+.toolbarColorPreview {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.textColorPopover {
+  background: #171923 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px !important;
+  padding: 10px 12px 12px !important;
+  width: fit-content;
+  max-width: min(240px, calc(100vw - 24px));
+}
+
+.textColorPopoverTitle {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6b6f85;
+  margin-bottom: 8px;
+}
+
+.textColorGrid {
+  display: grid;
+  grid-template-columns: repeat(6, 30px);
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(107, 111, 133, 0.45) transparent;
+}
+
+.textColorGrid::-webkit-scrollbar {
+  width: 6px;
+}
+
+.textColorGrid::-webkit-scrollbar-thumb {
+  background: rgba(107, 111, 133, 0.45);
   border-radius: 6px;
 }
 
-.toolbarBtn :global(.mantine-Button-root):hover:not(:disabled) {
-  background: rgba(91, 138, 240, 0.12);
+.textColorSwatch {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  padding: 0;
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease,
+    border-color 140ms ease;
 }
 
-.toolbarBtn :global(.mantine-Button-root[data-flowdocs-toolbar-active]) {
-  background: rgba(91, 138, 240, 0.2);
-  border-color: rgba(91, 138, 240, 0.35);
+.textColorSwatch:hover {
+  transform: scale(1.05);
 }
 
-.toolbarSelect :global(.mantine-Select-input) {
-  height: 28px;
-  min-height: 28px;
-  font-size: 11px;
-  font-weight: 600;
-  background: var(--ed-s3) !important;
-  border-color: var(--ed-border) !important;
-  color: var(--ed-text) !important;
+.textColorSwatchSelected {
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.18);
 }
 
-.toolbarSelect :global(.mantine-Select-input):focus {
-  border-color: rgba(91, 138, 240, 0.45) !important;
+.toolbarClearFmt {
+  font-size: 13px;
+  color: inherit;
+  letter-spacing: -0.02em;
+}
+
+.toolbarSelect {
+  flex-shrink: 0;
+}
+
+.toolbarSelectInput {
+  height: 34px !important;
+  min-height: 34px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  background: #1a1d28 !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  color: #e2e4f0 !important;
+  border-radius: 8px !important;
+}
+
+.toolbarSelectInput:hover {
+  border-color: rgba(91, 82, 181, 0.35) !important;
+}
+
+.toolbarSelectInput:focus,
+.toolbarSelectInput[data-expanded] {
+  border-color: rgba(91, 82, 181, 0.45) !important;
+  background: rgba(91, 82, 181, 0.14) !important;
+}
+
+.toolbarSelectDropdown {
+  background: #1a1d28 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.toolbarSelectOption {
+  font-size: 13px !important;
+}
+
+.toolbarSelectOption[data-combobox-selected] {
+  background: rgba(91, 82, 181, 0.14) !important;
 }
 
 .syncBadge :global(.mantine-Badge-root) {
   text-transform: none;
   letter-spacing: 0.02em;
   font-weight: 600;
-  font-size: 11px;
+  font-size: 10px;
+  height: 22px;
+  padding-inline: 8px;
 }
 
 .syncBadge {

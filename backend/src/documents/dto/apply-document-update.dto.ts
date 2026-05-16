@@ -12,6 +12,6 @@ export class ApplyDocumentUpdateDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(1_000_000)
+  @MaxLength(5_000_000)
   editorStateJson?: string;
 }

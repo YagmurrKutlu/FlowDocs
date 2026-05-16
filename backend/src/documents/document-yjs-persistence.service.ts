@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { DocumentRole, Prisma, WorkspaceRole } from '@prisma/client';
@@ -13,6 +14,8 @@ type Db = Prisma.TransactionClient | PrismaService;
 
 @Injectable()
 export class DocumentYjsPersistenceService {
+  private readonly logger = new Logger(DocumentYjsPersistenceService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly appConfig: AppConfigService,
@@ -67,6 +70,10 @@ export class DocumentYjsPersistenceService {
     sourceClientId?: string,
     editorStateJson?: string,
   ) {
+    if (typeof updateBase64 !== 'string' || updateBase64.trim().length === 0) {
+      throw new BadRequestException('updateBase64 zorunludur.');
+    }
+
     let updateBytes: Uint8Array;
     try {
       updateBytes = new Uint8Array(Buffer.from(updateBase64, 'base64'));
@@ -79,6 +86,7 @@ export class DocumentYjsPersistenceService {
     }
 
     const snapshotInterval = this.appConfig.document.snapshotInterval;
+    const editorStateJsonValue = this.parseEditorStateJsonForStorage(editorStateJson);
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -104,8 +112,6 @@ export class DocumentYjsPersistenceService {
           throw new BadRequestException('Geçersiz Yjs güncellemesi.');
         }
 
-        const normalizedEditorStateJson =
-          this.normalizeSerializedEditorState(editorStateJson);
         const plainTextContent = ydoc.getText('content').toString();
 
         const updated = await tx.document.update({
@@ -114,18 +120,13 @@ export class DocumentYjsPersistenceService {
             currentVersion: { increment: 1 },
             lastEditedById: userId,
             previewContent: plainTextContent,
+            ...(editorStateJsonValue !== undefined
+              ? { editorStateJson: editorStateJsonValue }
+              : {}),
           },
           select: { currentVersion: true },
         });
         const version = updated.currentVersion;
-
-        if (normalizedEditorStateJson) {
-          await tx.$executeRaw`
-            UPDATE "Document"
-            SET "editorStateJson" = ${normalizedEditorStateJson}::jsonb
-            WHERE "id" = ${documentId}
-          `;
-        }
 
         await tx.documentUpdate.create({
           data: {
@@ -162,6 +163,50 @@ export class DocumentYjsPersistenceService {
           'Belge sürümü çakışması; yeniden deneyin.',
         );
       }
+
+      if (error instanceof BadRequestException || error instanceof ForbiddenException) {
+        throw error;
+      }
+
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      if (error instanceof Prisma.PrismaClientValidationError) {
+        this.logger.error(
+          JSON.stringify({
+            event: 'document_update_prisma_validation_error',
+            documentId,
+            message: error.message,
+          }),
+        );
+        throw new BadRequestException('Belge verisi doğrulanamadı.');
+      }
+
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        this.logger.error(
+          JSON.stringify({
+            event: 'document_update_prisma_error',
+            documentId,
+            code: error.code,
+            meta: error.meta,
+          }),
+        );
+        throw new BadRequestException('Belge güncellenemedi.');
+      }
+
+      this.logger.error(
+        JSON.stringify({
+          event: 'document_update_failed',
+          documentId,
+          updateBase64Length: updateBase64.length,
+          hasEditorStateJson: typeof editorStateJson === 'string',
+          editorStateJsonLength:
+            typeof editorStateJson === 'string' ? editorStateJson.length : 0,
+          previewContentLength: 0,
+        }),
+        error instanceof Error ? error.stack : undefined,
+      );
       throw error;
     }
   }
@@ -270,28 +315,38 @@ export class DocumentYjsPersistenceService {
     return false;
   }
 
-  private normalizeSerializedEditorState(
+  /**
+   * Opaque Lexical snapshot — validate JSON shape only, never inspect node types.
+   */
+  private parseEditorStateJsonForStorage(
     serialized?: string,
-  ): string | undefined {
+  ): Prisma.InputJsonValue | undefined {
     if (typeof serialized !== 'string') return undefined;
-    const trimmed = serialized.trim();
+    const trimmed = serialized.trim().replace(/\u0000/g, '');
     if (!trimmed) return undefined;
+
+    let parsed: unknown;
     try {
-      const parsed = JSON.parse(trimmed) as unknown;
-      if (
-        typeof parsed !== 'object' ||
-        parsed === null ||
-        !('root' in parsed) ||
-        typeof (parsed as { root?: unknown }).root !== 'object' ||
-        (parsed as { root: unknown }).root === null
-      ) {
-        return undefined;
-      }
-      const root = (parsed as { root: { children?: unknown } }).root;
-      if (!Array.isArray(root.children)) return undefined;
-      return JSON.stringify(parsed);
+      parsed = JSON.parse(trimmed) as unknown;
     } catch {
-      return undefined;
+      throw new BadRequestException('editorStateJson geçerli JSON değil.');
     }
+
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      !('root' in parsed) ||
+      typeof (parsed as { root?: unknown }).root !== 'object' ||
+      (parsed as { root: unknown }).root === null
+    ) {
+      throw new BadRequestException('editorStateJson Lexical root içermiyor.');
+    }
+
+    const root = (parsed as { root: { children?: unknown } }).root;
+    if (!Array.isArray(root.children)) {
+      throw new BadRequestException('editorStateJson root.children geçersiz.');
+    }
+
+    return parsed as Prisma.InputJsonValue;
   }
 }

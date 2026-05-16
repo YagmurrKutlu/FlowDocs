@@ -38,6 +38,29 @@ body,
   text-decoration: line-through;
 }
 
+.flowdocs-text-code {
+  display: inline;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Liberation Mono', monospace;
+  font-size: 0.875em;
+  font-weight: 450;
+  line-height: inherit;
+  letter-spacing: -0.02em;
+  vertical-align: baseline;
+  background: rgba(255, 255, 255, 0.07);
+  border: none;
+  border-radius: 3px;
+  padding: 0.05em 0.28em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* White paper — Notion/Linear-style inline code */
+.flowdocs-document-page .flowdocs-text-code {
+  background: rgba(15, 23, 42, 0.06);
+  color: #1e293b;
+}
+
 .flowdocs-heading-h1 {
   font-size: 1.8rem;
   line-height: 1.25;
@@ -62,6 +85,119 @@ body,
   margin: 0.15em 0;
 }
 
+/* Multi-line code block (@lexical/code CodeNode) */
+.flowdocs-code-block {
+  display: block;
+  position: relative;
+  box-sizing: border-box;
+  margin: 0.85em 0;
+  padding: 16px 18px;
+  min-height: 56px;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Liberation Mono', monospace;
+  font-size: 13.5px;
+  font-weight: 400;
+  line-height: 1.7;
+  letter-spacing: 0;
+  tab-size: 2;
+  color: #e2e8f0;
+  caret-color: #93c5fd;
+  background: #1e293b;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  white-space: pre;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.flowdocs-code-block:empty::before {
+  content: '\00a0';
+}
+
+.flowdocs-code-block:focus {
+  outline: none;
+  border-color: rgba(96, 165, 250, 0.45);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 0 0 2px rgba(59, 130, 246, 0.18);
+}
+
+.flowdocs-document-page .flowdocs-code-block {
+  color: #e2e8f0;
+  background: #0f172a;
+  border-color: rgba(51, 65, 85, 0.88);
+}
+
+.flowdocs-document-page .flowdocs-code-block:focus {
+  caret-color: #60a5fa;
+}
+
+.flowdocs-code-block .flowdocs-text-code {
+  background: rgba(255, 255, 255, 0.1);
+  color: inherit;
+  padding: 0.05em 0.25em;
+}
+
+/* Syntax tokens inside code blocks (CodeHighlightNode) */
+.flowdocs-code-block .token-comment,
+.flowdocs-code-block .token-prolog,
+.flowdocs-code-block .token-doctype {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.flowdocs-code-block .token-punctuation {
+  color: #cbd5e1;
+}
+
+.flowdocs-code-block .token-property,
+.flowdocs-code-block .token-tag,
+.flowdocs-code-block .token-boolean,
+.flowdocs-code-block .token-number,
+.flowdocs-code-block .token-constant,
+.flowdocs-code-block .token-symbol {
+  color: #7dd3fc;
+}
+
+.flowdocs-code-block .token-selector,
+.flowdocs-code-block .token-string,
+.flowdocs-code-block .token-char,
+.flowdocs-code-block .token-builtin,
+.flowdocs-code-block .token-inserted {
+  color: #86efac;
+}
+
+.flowdocs-code-block .token-operator,
+.flowdocs-code-block .token-entity,
+.flowdocs-code-block .token-url,
+.flowdocs-code-block .token-variable {
+  color: #f8fafc;
+}
+
+.flowdocs-code-block .token-atrule,
+.flowdocs-code-block .token-attr-value,
+.flowdocs-code-block .token-keyword {
+  color: #c4b5fd;
+}
+
+.flowdocs-code-block .token-function,
+.flowdocs-code-block .token-class-name {
+  color: #fcd34d;
+}
+
+.flowdocs-code-block .token-regex,
+.flowdocs-code-block .token-important {
+  color: #fda4af;
+}
+
+.flowdocs-code-block .token-deleted {
+  color: #fca5a5;
+}
+
 /* Lexical editor surface (visual only; does not affect persistence) */
 .flowdocs-editor-content {
   color: #e2e4f0;
@@ -74,8 +210,12 @@ body,
   outline: none;
 }
 
-/* White paper document surface inside editor shell */
-.flowdocs-document-page .flowdocs-editor-content {
+/* White paper document surface — default ink on blocks; Lexical TextNode inline color wins on spans */
+.flowdocs-document-page .flowdocs-editor-content p,
+.flowdocs-document-page .flowdocs-editor-content h1,
+.flowdocs-document-page .flowdocs-editor-content h2,
+.flowdocs-document-page .flowdocs-editor-content li,
+.flowdocs-document-page .flowdocs-editor-content blockquote {
   color: #111827;
 }
 

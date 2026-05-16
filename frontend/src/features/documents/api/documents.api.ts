@@ -81,15 +81,53 @@ export async function fetchDocumentState(
   return data;
 }
 
+function devPersistDebugLog(message: string, data?: Record<string, unknown>): void {
+  if (!import.meta.env.DEV) return;
+  if (data) {
+    // eslint-disable-next-line no-console -- dev-only document persist tracing
+    console.log('[persist-debug]', message, data);
+  } else {
+    // eslint-disable-next-line no-console -- dev-only document persist tracing
+    console.log('[persist-debug]', message);
+  }
+}
+
 export async function postDocumentUpdate(
   documentId: string,
   payload: ApplyDocumentUpdatePayload,
 ): Promise<ApplyDocumentUpdateResponse> {
-  const { data } = await apiClient.post<ApplyDocumentUpdateResponse>(
-    `/documents/${documentId}/updates`,
-    payload,
-  );
-  return data;
+  try {
+    const { data } = await apiClient.post<ApplyDocumentUpdateResponse>(
+      `/documents/${documentId}/updates`,
+      payload,
+    );
+    return data;
+  } catch (error) {
+    const axiosError = error as {
+      response?: { status?: number; data?: { message?: unknown } };
+      message?: string;
+    };
+    const status = axiosError.response?.status;
+    const responseMessage = axiosError.response?.data?.message;
+    devPersistDebugLog('document update failed', {
+      documentId,
+      status,
+      message:
+        typeof responseMessage === 'string'
+          ? responseMessage
+          : Array.isArray(responseMessage)
+            ? responseMessage.join(', ')
+            : axiosError.message ?? 'unknown',
+      updateBase64Length:
+        typeof payload.updateBase64 === 'string' ? payload.updateBase64.length : 0,
+      hasEditorStateJson: typeof payload.editorStateJson === 'string',
+      editorStateJsonLength:
+        typeof payload.editorStateJson === 'string'
+          ? payload.editorStateJson.length
+          : 0,
+    });
+    throw error;
+  }
 }
 
 export async function fetchDocumentMembers(
