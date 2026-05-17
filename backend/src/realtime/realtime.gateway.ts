@@ -14,12 +14,14 @@ import { JwtService } from '@nestjs/jwt';
 import { WorkspaceRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import { UserSessionService } from '../sessions/user-session.service';
 import { Server, Socket } from 'socket.io';
 import { RealtimeService } from './realtime.service';
 
 interface JwtPayload {
   sub: string;
   email: string;
+  sessionId?: string;
 }
 
 interface JoinDocumentPayload {
@@ -62,6 +64,7 @@ export class RealtimeGateway
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
     private readonly realtimeService: RealtimeService,
+    private readonly userSessionService: UserSessionService,
   ) {}
 
   @WebSocketServer()
@@ -304,11 +307,21 @@ export class RealtimeGateway
       throw new WsException('Authentication required.');
     }
 
+    if (!payload.sessionId) {
+      throw new WsException('Authentication required.');
+    }
+
+    await this.userSessionService.assertSessionActive(
+      payload.sessionId,
+      user.id,
+    );
+
     const resolvedUser: AuthenticatedUser = {
       id: user.id,
       email: user.email,
       fullName: user.fullName,
       avatarUrl: user.avatarUrl,
+      sessionId: payload.sessionId,
     };
 
     client.data.user = resolvedUser;

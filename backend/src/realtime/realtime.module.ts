@@ -5,10 +5,12 @@ import { RealtimeController } from './realtime.controller';
 import { RealtimeGateway } from './realtime.gateway';
 import { RealtimeService } from './realtime.service';
 import { PrismaModule } from '../prisma/prisma.module';
+import { SessionsModule } from '../sessions/sessions.module';
 
 @Module({
   imports: [
     PrismaModule,
+    SessionsModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({

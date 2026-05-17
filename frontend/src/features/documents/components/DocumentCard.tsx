@@ -36,7 +36,7 @@ export function DocumentCard({ document }: DocumentCardProps) {
             transition: 'border-color 120ms ease, background-color 120ms ease',
             '&:hover': {
               borderColor: 'var(--mantine-color-violet-4)',
-              backgroundColor: 'var(--fd-surface-card-elevated)',
+              backgroundColor: 'var(--card-bg)',
             },
           },
         }}

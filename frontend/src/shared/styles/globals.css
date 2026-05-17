@@ -1,4 +1,4 @@
-@import './flowdocs-tokens.css';
+@import './theme-tokens.css';
 
 :root {
   font-synthesis: none;
@@ -19,7 +19,8 @@ body,
   width: 100%;
   min-height: 100%;
   margin: 0;
-  background-color: var(--fd-surface-app);
+  background-color: var(--app-bg);
+  color: var(--text-primary);
 }
 
 .flowdocs-text-bold {

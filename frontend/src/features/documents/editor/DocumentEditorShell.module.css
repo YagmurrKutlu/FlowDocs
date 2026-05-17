@@ -1,17 +1,5 @@
 /* FlowDocs editor workspace — toolbar + 3 columns + status (visual only) */
 .root {
-  --ed-bg: #0c0d11;
-  --ed-s1: #13151c;
-  --ed-s2: #1a1d27;
-  --ed-s3: #222638;
-  --ed-border: rgba(255, 255, 255, 0.07);
-  --ed-text: #e2e4f0;
-  --ed-muted: #6b6f85;
-  --ed-accent: #5b8af0;
-  --ed-green: #3ecf8e;
-  --ed-canvas: #f4f4f6;
-  --ed-paper: #ffffff;
-  --ed-ink: #111827;
   --ed-app-header-offset: 72px;
   --ed-sticky-chrome-height: 89px;
   --ed-status-bar-height: 28px;
@@ -57,7 +45,7 @@
   z-index: 200;
   flex: 0 0 auto;
   flex-shrink: 0;
-  background: rgba(19, 21, 28, 0.9);
+  background: var(--ed-sticky-bg);
   backdrop-filter: blur(14px) saturate(1.15);
   -webkit-backdrop-filter: blur(14px) saturate(1.15);
   border-bottom: 1px solid var(--ed-border);
@@ -68,8 +56,8 @@
 }
 
 .editorStickyShellScrolled {
-  background: rgba(19, 21, 28, 0.96);
-  border-bottom-color: rgba(255, 255, 255, 0.1);
+  background: var(--ed-sticky-bg-scrolled);
+  border-bottom-color: var(--ed-border-strong);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.04),
     0 10px 32px rgba(0, 0, 0, 0.38);
@@ -97,7 +85,7 @@
   gap: 12px;
   padding: 8px 16px;
   background: transparent;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--ed-border);
 }
 
 .docChromeTitle {
@@ -160,7 +148,7 @@
   display: inline-block;
   width: 1px;
   height: 20px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--ed-border);
   margin: 0 2px;
 }
 
@@ -174,7 +162,7 @@
   border-radius: 8px;
   border: 1px solid transparent;
   background: transparent;
-  color: #c4c0f0;
+  color: var(--ed-toolbar-icon);
   transition: all 140ms ease;
   cursor: pointer;
   font-size: 13px;
@@ -182,8 +170,8 @@
 }
 
 .toolbarIconBtn:hover:not(:disabled) {
-  background: rgba(91, 82, 181, 0.16);
-  color: #ffffff;
+  background: var(--ed-toolbar-hover);
+  color: var(--ed-toolbar-icon-active);
 }
 
 .toolbarIconBtn:disabled {
@@ -193,12 +181,12 @@
 
 .toolbarIconBtnActive,
 .toolbarIconBtn[data-flowdocs-toolbar-active] {
-  background: rgba(91, 82, 181, 0.22);
+  background: var(--ed-toolbar-active-bg);
   border-color: rgba(91, 82, 181, 0.45);
   box-shadow:
     0 0 0 1px rgba(91, 82, 181, 0.25),
     0 0 18px rgba(91, 82, 181, 0.18);
-  color: #ffffff;
+  color: var(--ed-toolbar-icon-active);
 }
 
 .toolbarIconBtnUiOnly {
@@ -223,8 +211,8 @@
 }
 
 .textColorPopover {
-  background: #171923 !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: var(--ed-popover-bg) !important;
+  border: 1px solid var(--ed-border) !important;
   border-radius: 12px !important;
   padding: 10px 12px 12px !important;
   width: fit-content;
@@ -236,13 +224,13 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #6b6f85;
+  color: var(--ed-muted);
   margin-bottom: 8px;
 }
 
 .linkPopover {
-  background: #171923 !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: var(--ed-popover-bg) !important;
+  border: 1px solid var(--ed-border) !important;
   border-radius: 12px !important;
   padding: 10px 12px 12px !important;
   width: min(320px, calc(100vw - 24px));
@@ -253,14 +241,14 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #6b6f85;
+  color: var(--ed-muted);
   margin-bottom: 8px;
 }
 
 .linkPopoverInput {
-  background: #0f1118 !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
-  color: #e2e4f0 !important;
+  background: var(--ed-input-bg) !important;
+  border-color: var(--ed-border-strong) !important;
+  color: var(--ed-text) !important;
   font-size: 13px !important;
 }
 
@@ -276,14 +264,14 @@
   display: block;
   font-size: 12px;
   line-height: 1.45;
-  color: #c5c9dc;
+  color: var(--text-secondary);
   word-break: break-all;
   max-width: 280px;
 }
 
 .tablePopover {
-  background: #171923 !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: var(--ed-popover-bg) !important;
+  border: 1px solid var(--ed-border) !important;
   border-radius: 12px !important;
   padding: 10px 12px 12px !important;
   width: min(280px, calc(100vw - 24px));
@@ -294,14 +282,14 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #6b6f85;
+  color: var(--ed-muted);
   margin-bottom: 10px;
 }
 
 .tablePopoverInput {
-  background: #0f1118 !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
-  color: #e2e4f0 !important;
+  background: var(--ed-input-bg) !important;
+  border-color: var(--ed-border-strong) !important;
+  color: var(--ed-text) !important;
 }
 
 .tablePopoverInput:focus {
@@ -427,8 +415,8 @@
 }
 
 .highlightPopover {
-  background: #171923 !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: var(--ed-popover-bg) !important;
+  border: 1px solid var(--ed-border) !important;
   border-radius: 12px !important;
   padding: 10px 12px 12px !important;
   width: fit-content;
@@ -440,7 +428,7 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #6b6f85;
+  color: var(--ed-muted);
   margin-bottom: 8px;
 }
 
@@ -474,7 +462,7 @@
 }
 
 .highlightSwatchClear {
-  background: #0f1118;
+  background: var(--ed-input-bg);
   position: relative;
 }
 
@@ -487,7 +475,7 @@
 }
 
 .toolbarHighlightPreviewEmpty {
-  background: #0f1118;
+  background: var(--ed-input-bg);
   border: 1px dashed rgba(255, 255, 255, 0.22);
 }
 
@@ -506,9 +494,9 @@
   min-height: 34px !important;
   font-size: 13px !important;
   font-weight: 600 !important;
-  background: #1a1d28 !important;
-  border: 1px solid rgba(255, 255, 255, 0.06) !important;
-  color: #e2e4f0 !important;
+  background: var(--ed-control-bg) !important;
+  border: 1px solid var(--ed-border) !important;
+  color: var(--ed-text) !important;
   border-radius: 8px !important;
 }
 
@@ -523,8 +511,8 @@
 }
 
 .toolbarSelectDropdown {
-  background: #1a1d28 !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: var(--ed-control-bg) !important;
+  border: 1px solid var(--ed-border) !important;
 }
 
 .toolbarSelectOption {
@@ -619,7 +607,7 @@
 .outlineItemLevel3 {
   padding-left: 26px;
   font-size: 12px;
-  color: rgba(232, 234, 245, 0.88);
+  color: var(--ed-text);
 }
 
 .outlineItem {
@@ -727,7 +715,7 @@
   height: 100%;
   max-height: 100%;
   border-left: 1px solid var(--ed-border);
-  background: var(--fd-surface-app);
+  background: var(--ed-rail-bg);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -739,7 +727,7 @@
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  background: var(--fd-surface-app);
+  background: var(--ed-rail-bg);
 }
 
 .railTabs :global(.mantine-Tabs-list) {
@@ -796,22 +784,22 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--fd-surface-app);
+  background: var(--ed-rail-bg);
 }
 
 .railScrollRoot {
   flex: 1 1 auto;
   min-height: 0;
-  background: var(--fd-surface-app);
+  background: var(--ed-rail-bg);
 }
 
 .railScrollViewport {
-  background: var(--fd-surface-app);
+  background: var(--ed-rail-bg);
   overscroll-behavior: contain;
 }
 
 .railScrollContent {
-  background: var(--fd-surface-app);
+  background: var(--ed-rail-bg);
   min-height: 100%;
 }
 
@@ -821,7 +809,7 @@
 }
 
 .railScrollRoot :global([data-orientation='horizontal']) {
-  background: var(--fd-surface-app);
+  background: var(--ed-rail-bg);
 }
 
 .railScrollThumb {
@@ -835,7 +823,7 @@
   flex-direction: column;
   padding: 14px;
   padding-bottom: 28px;
-  background: var(--fd-surface-app);
+  background: var(--ed-rail-bg);
 }
 
 
@@ -854,11 +842,11 @@
 .railUsersScroll {
   flex: 1 1 auto;
   min-height: 0;
-  background: var(--fd-surface-app);
+  background: var(--ed-rail-bg);
 }
 
 .railUsersViewport {
-  background: var(--fd-surface-app);
+  background: var(--ed-rail-bg);
   scrollbar-width: thin;
   scrollbar-color: rgba(107, 111, 133, 0.45) transparent;
 }
@@ -874,7 +862,7 @@
 
 .railUsersBody {
   padding: 14px;
-  background: var(--fd-surface-app);
+  background: var(--ed-rail-bg);
   min-height: 100%;
 }
 

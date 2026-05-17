@@ -8,8 +8,8 @@ export function AppCard({ children, style, ...props }: PropsWithChildren<CardPro
       radius="lg"
       shadow="sm"
       withBorder
-      bg="var(--fd-surface-card)"
-      style={{ borderColor: 'var(--fd-border-subtle)', ...style }}
+      bg="var(--card-bg)"
+      style={{ borderColor: 'var(--border-color)', ...style }}
       {...props}
     >
       {children}

@@ -9,6 +9,7 @@ import { MediaModule } from './media/media.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { PresenceModule } from './presence/presence.module';
 import { ActivityModule } from './activity/activity.module';
+import { ProfileModule } from './profile/profile.module';
 import { HealthModule } from './health/health.module';
 import { CommonModule } from './common/common.module';
 import { ConfigModule } from './config/config.module';
@@ -44,6 +45,7 @@ import { envValidationSchema } from './config/env/env.validation';
     RealtimeModule,
     PresenceModule,
     ActivityModule,
+    ProfileModule,
     HealthModule,
     CommonModule,
     ConfigModule,

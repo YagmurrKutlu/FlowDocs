@@ -11,7 +11,7 @@
   min-height: 0;
   overflow: hidden;
   box-sizing: border-box;
-  background: var(--fd-surface-app, #0c0d11);
+  background: var(--app-bg);
 }
 
 .fetchingOverlay {
@@ -21,8 +21,8 @@
   z-index: 5;
   padding: 6px 10px;
   border-radius: 8px;
-  background: rgba(19, 21, 28, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--overlay-bg);
+  border: 1px solid var(--border-color);
   pointer-events: none;
 }
 
@@ -36,8 +36,8 @@
   margin-inline: calc(var(--mantine-spacing-lg) * -1);
   padding-inline: var(--mantine-spacing-lg);
   padding-block: 0;
-  background: #0c0d11;
-  color: #e2e4f0;
+  background: var(--ed-bg);
+  color: var(--ed-text);
   overflow: hidden;
 }
 

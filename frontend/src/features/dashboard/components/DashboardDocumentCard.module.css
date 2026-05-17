@@ -8,8 +8,8 @@
 .card {
   position: relative;
   height: 100%;
-  background: var(--fd-surface-card);
-  border: 1px solid var(--fd-border-subtle);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 14px;
   overflow: hidden;
   transition:
@@ -21,9 +21,7 @@
 .card:hover {
   transform: translateY(-3px);
   border-color: rgba(96, 165, 250, 0.35);
-  box-shadow:
-    0 0 0 1px rgba(59, 130, 246, 0.2),
-    0 12px 28px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-card-hover);
 }
 
 .accent {
@@ -65,11 +63,11 @@
 }
 
 .docTitle {
-  color: #fff;
+  color: var(--text-primary);
 }
 
 .updated {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
 }
 
 .footer {
@@ -78,7 +76,7 @@
   justify-content: space-between;
   margin-top: 14px;
   padding-top: 12px;
-  border-top: 1px solid var(--fd-border-subtle);
+  border-top: 1px solid var(--border-color);
 }
 
 .status {
@@ -99,7 +97,8 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.25);
+  background: var(--text-muted);
+  opacity: 0.45;
 }
 
 .statusLive {
@@ -107,5 +106,5 @@
 }
 
 .statusOff {
-  color: var(--fd-text-muted);
+  color: var(--text-muted);
 }

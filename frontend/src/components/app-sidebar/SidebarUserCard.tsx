@@ -68,7 +68,7 @@ export function SidebarUserCard({ user, collapsed, roleLabel = 'Üye' }: Sidebar
         transition: 'background 120ms ease',
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = 'rgba(28, 44, 78, 0.45)';
+        e.currentTarget.style.background = 'var(--fd-sidebar-user-hover)';
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.background = 'transparent';
@@ -80,7 +80,7 @@ export function SidebarUserCard({ user, collapsed, roleLabel = 'Üye' }: Sidebar
             {initials}
           </Avatar>
           <Stack gap={2} style={{ minWidth: 0 }}>
-            <Text fw={600} size="sm" lineClamp={1} c="rgba(255, 255, 255, 0.95)">
+            <Text fw={600} size="sm" lineClamp={1} c="var(--text-primary)">
               {name}
             </Text>
             <Text size="xs" c="dimmed" lineClamp={1}>

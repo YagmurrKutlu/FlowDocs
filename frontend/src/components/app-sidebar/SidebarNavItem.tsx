@@ -7,15 +7,15 @@ import { isSidebarNavActive, sidebarNavHref } from './nav-matcher';
 import styles from './SidebarNavItem.module.css';
 
 const activeRoot = {
-  background: 'rgba(91, 82, 181, 0.32)',
-  border: '1px solid rgba(59, 130, 246, 0.42)',
+  background: 'var(--fd-nav-active-bg)',
+  border: '1px solid var(--fd-nav-active-border)',
   borderRadius: 10,
-  color: '#E8F1FF',
+  color: 'var(--fd-nav-active-text)',
 } as const;
 
 const inactiveHover = {
-  background: 'rgba(28, 44, 78, 0.55)',
-  color: '#B8D4FF',
+  background: 'var(--fd-nav-hover-bg)',
+  color: 'var(--fd-nav-hover-text)',
 } as const;
 
 export type SidebarNavItemProps = {
@@ -39,8 +39,13 @@ export function SidebarNavItem({
   const active = isSidebarNavActive(navKey, location);
   const href = sidebarNavHref(navKey);
 
-  const iconColor = active || hovered ? '#B8D4FF' : 'rgba(184, 212, 255, 0.55)';
-  const textColor = active ? '#E8F1FF' : hovered ? inactiveHover.color : 'rgba(255, 255, 255, 0.72)';
+  const iconColor =
+    active || hovered ? 'var(--fd-nav-hover-text)' : 'var(--fd-nav-idle-text)';
+  const textColor = active
+    ? 'var(--fd-nav-active-text)'
+    : hovered
+      ? 'var(--fd-nav-hover-text)'
+      : 'var(--fd-nav-idle-text)';
 
   const badgeNode =
     !collapsed && active && badge != null && badge > 0 ? (

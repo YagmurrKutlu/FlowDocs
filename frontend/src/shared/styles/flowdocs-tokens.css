@@ -1,12 +1,1 @@
-/* FlowDocs unified dark surfaces — use via var(...) */
-:root {
-  --fd-surface-app: #0e0b1a;
-  /* Sidebar column — same deep base as app for premium unified rail */
-  --fd-surface-sidebar: #0e0b1a;
-  --fd-surface-card: #161320;
-  --fd-surface-card-elevated: #1a1530;
-  /* AppShell top header (Topbar) */
-  --fd-surface-header: #1a1530;
-  --fd-border-subtle: rgba(196, 192, 240, 0.08);
-  --fd-text-muted: rgba(234, 233, 250, 0.62);
-}
+/* Legacy alias file — tokens live in theme-tokens.css (theme-aware). */

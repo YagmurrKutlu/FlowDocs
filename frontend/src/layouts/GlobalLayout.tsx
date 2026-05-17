@@ -21,17 +21,18 @@ export function GlobalLayout() {
       transitionTimingFunction="ease"
       styles={{
         main: {
-          background: 'var(--fd-surface-app)',
+          background: 'var(--app-bg)',
+          color: 'var(--text-primary)',
           minHeight: '100vh',
         },
         navbar: {
-          backgroundColor: 'var(--fd-surface-sidebar)',
-          borderRight: '1px solid var(--fd-border-subtle)',
+          backgroundColor: 'var(--sidebar-bg)',
+          borderRight: '1px solid var(--border-color)',
         },
         header: {
-          backgroundColor: 'var(--fd-surface-header)',
+          backgroundColor: 'var(--surface-bg)',
           backgroundImage: 'none',
-          borderBottom: '1px solid var(--fd-border-subtle)',
+          borderBottom: '1px solid var(--border-color)',
         },
       }}
     >

@@ -12,7 +12,7 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
   },
   '/profile': {
     title: 'Profil',
-    subtitle: 'Hesap ayarlarınız.',
+    subtitle: 'Hesap bilgileriniz, aktiviteler ve tercihler.',
   },
 };
 

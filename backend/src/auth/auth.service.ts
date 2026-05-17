@@ -6,8 +6,10 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { compare, hash } from 'bcryptjs';
+import type { Request } from 'express';
 import type { StringValue } from 'ms';
 import { PrismaService } from '../prisma/prisma.service';
+import { UserSessionService } from '../sessions/user-session.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { AuthenticatedUser } from './interfaces/authenticated-user.interface';
@@ -18,9 +20,10 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly userSessionService: UserSessionService,
   ) {}
 
-  async login(payload: LoginDto) {
+  async login(payload: LoginDto, request: Request) {
     const email = payload.email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({
       where: { email },
@@ -36,18 +39,26 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password.');
     }
 
-    const safeUser = this.toAuthenticatedUser(user);
+    if (!user.isActive) {
+      throw new UnauthorizedException('Invalid email or password.');
+    }
+
+    const sessionId = await this.userSessionService.createSessionForUser(
+      user.id,
+      request,
+    );
+    const safeUser = this.toAuthenticatedUser(user, sessionId);
     const token = await this.signToken(safeUser);
 
     return {
-      user: safeUser,
+      user: this.toPublicUser(safeUser),
       accessToken: token,
       tokenType: 'Bearer',
       expiresIn: this.configService.getOrThrow<string>('auth.jwtExpiresIn'),
     };
   }
 
-  async register(payload: RegisterDto) {
+  async register(payload: RegisterDto, request: Request) {
     const email = payload.email.trim().toLowerCase();
     const fullName = payload.fullName.trim();
     const existingUser = await this.prisma.user.findUnique({
@@ -66,11 +77,15 @@ export class AuthService {
         passwordHash,
       },
     });
-    const safeUser = this.toAuthenticatedUser(createdUser);
+    const sessionId = await this.userSessionService.createSessionForUser(
+      createdUser.id,
+      request,
+    );
+    const safeUser = this.toAuthenticatedUser(createdUser, sessionId);
     const token = await this.signToken(safeUser);
 
     return {
-      user: safeUser,
+      user: this.toPublicUser(safeUser),
       accessToken: token,
       tokenType: 'Bearer',
       expiresIn: this.configService.getOrThrow<string>('auth.jwtExpiresIn'),
@@ -82,6 +97,7 @@ export class AuthService {
       {
         sub: user.id,
         email: user.email,
+        sessionId: user.sessionId,
       },
       {
         expiresIn: this.configService.getOrThrow<string>(
@@ -91,12 +107,25 @@ export class AuthService {
     );
   }
 
-  private toAuthenticatedUser(user: {
-    id: string;
-    email: string;
-    fullName: string;
-    avatarUrl: string | null;
-  }): AuthenticatedUser {
+  private toAuthenticatedUser(
+    user: {
+      id: string;
+      email: string;
+      fullName: string;
+      avatarUrl: string | null;
+    },
+    sessionId: string,
+  ): AuthenticatedUser {
+    return {
+      id: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      avatarUrl: user.avatarUrl,
+      sessionId,
+    };
+  }
+
+  private toPublicUser(user: AuthenticatedUser) {
     return {
       id: user.id,
       email: user.email,

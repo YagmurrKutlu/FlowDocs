@@ -9,13 +9,13 @@
 .header {
   flex: 0 0 auto;
   padding: 14px 14px 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--msg-header-border);
 }
 
 .title {
   font-size: 13px;
   font-weight: 700;
-  color: #e2e4f0;
+  color: var(--msg-title);
   letter-spacing: -0.01em;
 }
 
@@ -23,7 +23,7 @@
   margin-top: 4px;
   font-size: 11px;
   line-height: 1.45;
-  color: #6b6f85;
+  color: var(--msg-subtitle);
 }
 
 .messageList {
@@ -49,13 +49,13 @@
 .emptyTitle {
   font-size: 13px;
   font-weight: 600;
-  color: #c4c8dc;
+  color: var(--msg-empty-title);
 }
 
 .emptyHint {
   font-size: 12px;
   line-height: 1.5;
-  color: #6b6f85;
+  color: var(--msg-subtitle);
   max-width: 240px;
 }
 
@@ -101,31 +101,31 @@
   width: 7px;
   height: 7px;
   border-radius: 999px;
-  border: 1px solid rgba(15, 23, 42, 0.35);
+  border: 1px solid var(--border-color);
 }
 
 .statusDotOnline {
-  background: #3ecf8e;
+  background: var(--ed-green);
   box-shadow: 0 0 6px rgba(62, 207, 142, 0.45);
 }
 
 .statusDotOffline {
-  background: #6b7280;
+  background: var(--text-muted);
 }
 
 .messageAuthor {
   font-size: 11px;
   font-weight: 600;
-  color: #ddd7ff;
+  color: var(--msg-author);
 }
 
 .messageTime {
   font-size: 10px;
-  color: #6b6f85;
+  color: var(--msg-subtitle);
 }
 
 .messageRowOther .messageTime {
-  color: rgba(215, 219, 255, 0.58);
+  color: var(--text-muted);
 }
 
 .messageBubble {
@@ -147,15 +147,11 @@
 }
 
 .messageBubbleOther {
-  background: linear-gradient(
-    180deg,
-    rgba(62, 60, 104, 0.88) 0%,
-    rgba(42, 40, 78, 0.96) 100%
-  );
-  color: #f4f2ff;
-  border: 1px solid rgba(139, 133, 212, 0.22);
+  background: var(--msg-bubble-other-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--msg-bubble-other-border);
   border-bottom-left-radius: 4px;
-  box-shadow: 0 8px 22px rgba(20, 18, 45, 0.38);
+  box-shadow: var(--shadow-card);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   transition:
@@ -165,13 +161,8 @@
 }
 
 .messageBubbleOther:hover {
-  background: linear-gradient(
-    180deg,
-    rgba(70, 68, 114, 0.92) 0%,
-    rgba(50, 48, 88, 0.98) 100%
-  );
-  border-color: rgba(139, 133, 212, 0.3);
-  box-shadow: 0 10px 24px rgba(20, 18, 45, 0.42);
+  border-color: var(--dc-border-hover);
+  box-shadow: var(--shadow-card-hover);
 }
 
 .deleteBtn {
@@ -185,7 +176,7 @@
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: #8b90a8;
+  color: var(--text-muted);
   cursor: pointer;
   transition:
     background 0.12s ease,
@@ -194,7 +185,7 @@
 
 .deleteBtn:hover {
   background: rgba(248, 113, 113, 0.14);
-  color: #f87171;
+  color: var(--dc-danger);
 }
 
 .typingIndicator {
@@ -202,7 +193,7 @@
   padding: 6px 12px 0;
   font-size: 11px;
   font-style: italic;
-  color: #8b93b8;
+  color: var(--text-muted);
   line-height: 1.4;
   min-height: 18px;
 }
@@ -210,8 +201,8 @@
 .composer {
   flex: 0 0 auto;
   padding: 10px 12px 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(19, 21, 28, 0.72);
+  border-top: 1px solid var(--msg-header-border);
+  background: var(--msg-composer-bg);
 }
 
 .composerFooter {
@@ -224,7 +215,7 @@
 
 .charCount {
   font-size: 11px;
-  color: #6b6f85;
+  color: var(--msg-subtitle);
 }
 
 .charCountLimit {

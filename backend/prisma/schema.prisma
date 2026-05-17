@@ -52,6 +52,43 @@ model User {
   authoredDocumentComments DocumentComment[] @relation("DocumentCommentAuthor")
   resolvedDocumentComments DocumentComment[] @relation("DocumentCommentResolver")
   authoredDocumentMessages DocumentMessage[] @relation("DocumentMessageAuthor")
+  profile                  UserProfile?
+  sessions                 UserSession[]
+}
+
+model UserSession {
+  id          String    @id @default(cuid())
+  userId      String
+  userAgent   String?
+  ipAddress   String?
+  deviceLabel String?
+  browser     String?
+  os          String?
+  location    String?
+  createdAt   DateTime  @default(now())
+  lastSeenAt  DateTime  @default(now())
+  revokedAt   DateTime?
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, revokedAt])
+  @@index([lastSeenAt])
+}
+
+model UserProfile {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  displayName          String?
+  bio                  String?
+  location             String?
+  title                String?
+  coverUrl             String?
+  skills               Json?
+  notificationSettings Json?
+  appearanceSettings   Json?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Workspace {

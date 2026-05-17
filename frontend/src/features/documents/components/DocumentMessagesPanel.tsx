@@ -291,9 +291,9 @@ export function DocumentMessagesPanel({
           disabled={createMutation.isPending}
           styles={{
             input: {
-              background: '#13151c',
-              borderColor: 'rgba(255, 255, 255, 0.08)',
-              color: '#e2e4f0',
+              background: 'var(--ed-input-bg)',
+              borderColor: 'var(--border-color)',
+              color: 'var(--ed-text)',
             },
           }}
         />

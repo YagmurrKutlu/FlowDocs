@@ -1,12 +1,12 @@
 .card {
-  background: var(--fd-surface-card);
-  border: 1px solid var(--fd-border-subtle);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 14px;
   padding: 18px 20px;
 }
 
 .label {
-  color: var(--fd-text-muted);
+  color: var(--text-muted);
 }
 
 .valueBlue {
@@ -22,5 +22,5 @@
 }
 
 .valueWhite {
-  color: #f4f4f5;
+  color: var(--text-primary);
 }
