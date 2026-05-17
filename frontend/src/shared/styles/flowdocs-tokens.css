@@ -5,6 +5,8 @@
   --fd-surface-sidebar: #0e0b1a;
   --fd-surface-card: #161320;
   --fd-surface-card-elevated: #1a1530;
+  /* AppShell top header (Topbar) */
+  --fd-surface-header: #1a1530;
   --fd-border-subtle: rgba(196, 192, 240, 0.08);
   --fd-text-muted: rgba(234, 233, 250, 0.62);
 }

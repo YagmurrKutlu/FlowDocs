@@ -20,11 +20,14 @@ import { RealtimeService } from '../realtime/realtime.service';
 import { ApplyDocumentUpdateDto } from './dto/apply-document-update.dto';
 import { AddDocumentMemberDto } from './dto/add-document-member.dto';
 import { CreateDocumentCommentDto } from './dto/create-document-comment.dto';
+import { CreateDocumentMessageDto } from './dto/create-document-message.dto';
+import { DocumentMessagesService } from './document-messages.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { ListDocumentsQueryDto } from './dto/list-documents-query.dto';
 import { UpdateDocumentCommentDto } from './dto/update-document-comment.dto';
 import { UpdateDocumentMemberDto } from './dto/update-document-member.dto';
 import { DocumentExportService } from './document-export.service';
+import { DocumentStateRecoveryService } from './document-state-recovery.service';
 import { DocumentYjsPersistenceService } from './document-yjs-persistence.service';
 import { ExportDocumentQueryDto } from './dto/export-document-query.dto';
 import { DocumentsService } from './documents.service';
@@ -36,7 +39,9 @@ export class DocumentsController {
 
   constructor(
     private readonly documentsService: DocumentsService,
+    private readonly documentMessagesService: DocumentMessagesService,
     private readonly documentYjsPersistence: DocumentYjsPersistenceService,
+    private readonly documentStateRecovery: DocumentStateRecoveryService,
     private readonly documentExportService: DocumentExportService,
     private readonly realtimeService: RealtimeService,
   ) {}
@@ -63,6 +68,30 @@ export class DocumentsController {
     @Param('id') id: string,
   ) {
     return this.documentYjsPersistence.getDocumentState(user.id, id);
+  }
+
+  @Post(':id/recover-latest-non-empty-state')
+  async recoverLatestNonEmptyState(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    const result = await this.documentStateRecovery.recoverLatestNonEmptyState(
+      user.id,
+      id,
+    );
+
+    if (result.recovered && result.applied?.stateUpdateBase64) {
+      this.realtimeService.publishDocumentUpdate({
+        documentId: id,
+        updateBase64: result.applied.stateUpdateBase64,
+        sourceClientId: 'recovery-tool',
+        ...(result.applied.editorStateJson
+          ? { editorStateJson: result.applied.editorStateJson }
+          : {}),
+      });
+    }
+
+    return result;
   }
 
   @Post(':id/updates')
@@ -220,6 +249,36 @@ export class DocumentsController {
     @Param('commentId') commentId: string,
   ) {
     return this.documentsService.deleteDocumentComment(user.id, id, commentId);
+  }
+
+  @Get(':id/messages')
+  listDocumentMessages(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.documentMessagesService.listDocumentMessages(user.id, id);
+  }
+
+  @Post(':id/messages')
+  createDocumentMessage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() payload: CreateDocumentMessageDto,
+  ) {
+    return this.documentMessagesService.createDocumentMessage(user.id, id, payload);
+  }
+
+  @Delete(':id/messages/:messageId')
+  deleteDocumentMessage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('messageId') messageId: string,
+  ) {
+    return this.documentMessagesService.deleteDocumentMessage(
+      user.id,
+      id,
+      messageId,
+    );
   }
 
   @Get(':id/export')

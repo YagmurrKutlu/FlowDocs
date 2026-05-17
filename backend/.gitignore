@@ -12,3 +12,4 @@ coverage
 .env.*.local
 
 /generated/prisma
+recovery-backups/

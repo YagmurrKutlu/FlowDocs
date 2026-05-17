@@ -133,6 +133,13 @@ body,
   margin: 0.35em 0;
 }
 
+.flowdocs-heading-h3 {
+  font-size: 1.15rem;
+  line-height: 1.4;
+  font-weight: 600;
+  margin: 0.3em 0;
+}
+
 .flowdocs-list-ul,
 .flowdocs-list-ol {
   margin: 0.4em 0 0.4em 1.2em;
@@ -693,13 +700,15 @@ body,
 .flowdocs-document-page .flowdocs-editor-content p,
 .flowdocs-document-page .flowdocs-editor-content h1,
 .flowdocs-document-page .flowdocs-editor-content h2,
+.flowdocs-document-page .flowdocs-editor-content h3,
 .flowdocs-document-page .flowdocs-editor-content li,
 .flowdocs-document-page .flowdocs-editor-content blockquote {
   color: #111827;
 }
 
 .flowdocs-document-page .flowdocs-heading-h1,
-.flowdocs-document-page .flowdocs-heading-h2 {
+.flowdocs-document-page .flowdocs-heading-h2,
+.flowdocs-document-page .flowdocs-heading-h3 {
   color: #111827;
 }
 

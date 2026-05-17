@@ -72,6 +72,8 @@ import {
 } from 'lexical';
 import { io, type Socket } from 'socket.io-client';
 import {
+  cloneElement,
+  isValidElement,
   useCallback,
   useEffect,
   useMemo,
@@ -79,6 +81,7 @@ import {
   useState,
   type ChangeEvent,
   type MutableRefObject,
+  type ReactElement,
   type ReactNode,
 } from 'react';
 import * as Y from 'yjs';
@@ -91,6 +94,13 @@ import {
   postDocumentUpdate,
 } from '../api/documents.api';
 import { documentsQueryKeys } from '../hooks/useDocumentsQueries';
+import {
+  removeDocumentMessageFromCache,
+  upsertDocumentMessageInCache,
+} from '../utils/document-messages-cache';
+import type { DocumentMessage } from '../types/document.types';
+import type { DocumentMessagesPanelProps } from '../components/DocumentMessagesPanel';
+import type { DocumentMessageTypingUser } from '../utils/document-message-typing';
 import { resolveConfirmMediaUrl } from '../utils/confirm-media-url';
 import { CommentSelectionCapturePlugin } from './CommentSelectionCapturePlugin';
 import { FlowDocsLinkPlugin, LinkClickPlugin } from './FlowDocsLinkPlugin';
@@ -128,6 +138,7 @@ import { getUserColor } from './user-colors';
 import { presenceDotColor, presenceGradientCss } from './documentPresenceGradients';
 import editorShell from './DocumentEditorShell.module.css';
 import { PresenceActivityFeed } from './PresenceActivityFeed';
+import { DocumentOutlinePanel } from './DocumentOutlinePanel';
 import type { DocumentEditorShellPresenceActivity } from './presenceActivityUtils';
 export type { DocumentEditorShellPresenceActivity } from './presenceActivityUtils';
 import {
@@ -177,7 +188,7 @@ function initialsFromName(name: string): string {
 }
 
 type PersistStatus = 'idle' | 'saving' | 'saved' | 'error';
-type ToolbarBlockType = 'paragraph' | 'h1' | 'h2' | 'ul' | 'ol' | 'code';
+type ToolbarBlockType = 'paragraph' | 'h1' | 'h2' | 'h3' | 'ul' | 'ol' | 'code';
 const LOAD_ORIGIN = 'load';
 const EDITOR_ORIGIN = 'editor';
 const REMOTE_ORIGIN = 'remote';
@@ -216,6 +227,7 @@ const EDITOR_THEME = {
   heading: {
     h1: 'flowdocs-heading-h1',
     h2: 'flowdocs-heading-h2',
+    h3: 'flowdocs-heading-h3',
   },
   list: {
     ul: 'flowdocs-list-ul',
@@ -283,6 +295,29 @@ interface DocumentUpdateEvent {
 
 interface DocumentMemberUpdatedEvent {
   documentId: string;
+}
+
+interface DocumentMessageCreatedEvent {
+  documentId: string;
+  message: {
+    id: string;
+    documentId: string;
+    body: string;
+    createdAt: string;
+    author: { id: string; name: string; email: string };
+    isMine?: boolean;
+  };
+}
+
+interface DocumentMessageDeletedEvent {
+  documentId: string;
+  messageId: string;
+}
+
+interface DocumentMessageTypingEvent {
+  documentId: string;
+  user: DocumentMessageTypingUser;
+  isTyping: boolean;
 }
 
 interface CursorSelectionOverlayRect {
@@ -614,13 +649,75 @@ function readLexicalRootMetrics(editor: LexicalEditor): {
   });
 }
 
+function yjsHasSubstantiveContent(
+  ytext: Y.Text,
+  ylexicalState: Y.Map<string>,
+): boolean {
+  if (ytext.toString().trim().length > 0) return true;
+  return hasRichLexicalSnapshot(ylexicalState.get('serialized'));
+}
+
+interface PersistGuardContext {
+  allowEmptyPublish: boolean;
+  editorStateJson: string;
+  previewPlainText: string;
+  hasRestoredNonEmpty: boolean;
+}
+
+/** True when local lexical state has no text and no rich/media snapshot worth preserving. */
+function isLocalLexicalUpdateEffectivelyEmpty(
+  nextText: string,
+  nextSerialized: string,
+): boolean {
+  if (nextText.trim().length > 0) return false;
+  if (hasRichLexicalSnapshot(nextSerialized)) return false;
+  const serializedPlain = recoverPlainTextFromLexicalSerialized(nextSerialized).plainText.trim();
+  return serializedPlain.length === 0;
+}
+
+function shouldBlockDestructiveEmptyPublish(
+  nextText: string,
+  nextSerialized: string,
+  ytext: Y.Text,
+  ylexicalState: Y.Map<string>,
+  ctx: PersistGuardContext,
+): { block: true; reason: string } | { block: false } {
+  if (!isLocalLexicalUpdateEffectivelyEmpty(nextText, nextSerialized)) {
+    return { block: false };
+  }
+
+  if (ctx.hasRestoredNonEmpty) {
+    return { block: true, reason: 'restored-non-empty' };
+  }
+
+  const yjsHasContent = yjsHasSubstantiveContent(ytext, ylexicalState);
+  const apiHadContent =
+    ctx.editorStateJson.trim().length > 0 || ctx.previewPlainText.length > 0;
+
+  if (yjsHasContent || apiHadContent) {
+    return {
+      block: true,
+      reason: yjsHasContent ? 'yjs-has-content' : 'api-had-content',
+    };
+  }
+
+  if (!ctx.allowEmptyPublish) {
+    return { block: true, reason: 'not-truly-empty-document' };
+  }
+
+  return { block: false };
+}
+
 function logYjsRestoreState(ytext: Y.Text, ylexicalState: Y.Map<string>): void {
   const serialized = ylexicalState.get('serialized');
   const plain = ytext.toString();
+  const serializedTextLength =
+    typeof serialized === 'string' ? recoverPlainTextFromLexicalSerialized(serialized).plainText.length : 0;
   devRestoreDebugLog('yjs after apply', {
     ytextLength: plain.length,
     hasSerialized: typeof serialized === 'string' && serialized.length > 0,
     hasRichSerialized: hasRichLexicalSnapshot(serialized),
+    serializedTextLength,
     plainTextLength: plain.length,
   });
 }
@@ -666,12 +763,19 @@ function applyYjsSnapshotToLexical(
   editor.update(() => writeEditorText(textToWrite), { tag: SYNC_FROM_YJS_TAG });
 }
 
+interface RestoreLifecycleRefs {
+  restoreCompleteRef: MutableRefObject<boolean>;
+  hasRestoredNonEmptyRef: MutableRefObject<boolean>;
+  restorePayloadRef: MutableRefObject<DocumentRestorePayload | null>;
+}
+
 interface YjsLexicalBridgePluginProps {
   ydoc: Y.Doc;
   ytext: Y.Text;
   ylexicalState: Y.Map<string>;
   canEdit: boolean;
   restorePayload: DocumentRestorePayload;
+  restoreLifecycle: RestoreLifecycleRefs;
 }
 
 function YjsLexicalBridgePlugin({
@@ -680,10 +784,12 @@ function YjsLexicalBridgePlugin({
   ylexicalState,
   canEdit,
   restorePayload,
+  restoreLifecycle,
 }: YjsLexicalBridgePluginProps) {
   const [editor] = useLexicalComposerContext();
   const lastAppliedSerializedRef = useRef<string | null>(null);
-  const restoreCompleteRef = useRef(false);
+  const restoreCompleteRef = restoreLifecycle.restoreCompleteRef;
+  const hasRestoredNonEmptyRef = restoreLifecycle.hasRestoredNonEmptyRef;
   const allowEmptyPublishRef = useRef(restorePayload.allowEmptyPublish);
 
   useEffect(() => {
@@ -732,8 +838,12 @@ function YjsLexicalBridgePlugin({
         const yjsCodeBlockLen = getCodeBlockTextLengthFromSerialized(serializedState);
         const editorCodeBlockLen = getCodeBlockTextLengthFromEditor(editor);
         const codeBlockContentStale = yjsCodeBlockLen > editorCodeBlockLen;
+        const editorMetrics = readLexicalRootMetrics(editor);
+        const editorEmptyButYjsRich =
+          editorMetrics.rootTextLength === 0 && richSnapshotInYjs;
         const needsLexicalApply =
           forceApply ||
+          editorEmptyButYjsRich ||
           serializedState !== lastAppliedSerializedRef.current ||
           editorSerialized !== serializedState ||
           codeBlockContentStale;
@@ -771,6 +881,15 @@ function YjsLexicalBridgePlugin({
               origin: originLabel(origin),
               forceApply,
             });
+          }
+        } else if (editorEmptyButYjsRich) {
+          devRestoreDebugLog('forcing lexical apply', {
+            reason: 'editor-empty-yjs-rich',
+            origin: originLabel(origin),
+          });
+          if (tryApplySerializedLexicalState(editor, serializedState)) {
+            lastAppliedSerializedRef.current = serializedState;
+            finishRestore?.();
           }
         } else {
           devRealtimeDebugLog('syncFromYjs skipped', {
@@ -858,6 +977,20 @@ function YjsLexicalBridgePlugin({
 
       applyYjsSnapshotToLexical(editor, ytext, ylexicalState, lastAppliedSerializedRef);
       let metrics = readLexicalRootMetrics(editor);
+      const yjsSerializedAfterApply = ylexicalState.get('serialized');
+      if (
+        metrics.rootTextLength === 0 &&
+        hasRichLexicalSnapshot(yjsSerializedAfterApply) &&
+        typeof yjsSerializedAfterApply === 'string'
+      ) {
+        devRestoreDebugLog('forcing lexical apply after empty yjs snapshot', {
+          serializedLen: yjsSerializedAfterApply.length,
+        });
+        if (tryApplySerializedLexicalState(editor, yjsSerializedAfterApply)) {
+          lastAppliedSerializedRef.current = yjsSerializedAfterApply;
+          metrics = readLexicalRootMetrics(editor);
+        }
+      }
       devRestoreDebugLog('lexical after restore', metrics);
 
       const apiCodeBlockTextLen = getCodeBlockTextLengthFromSerialized(
@@ -929,7 +1062,17 @@ function YjsLexicalBridgePlugin({
 
       logRestoredCodeBlockTextLength(editor);
       logRestoredContainsTable(editor);
-      devRestoreDebugLog('restore completed', metrics);
+      metrics = readLexicalRootMetrics(editor);
+      if (metrics.rootTextLength > 0 || yjsHasSubstantiveContent(ytext, ylexicalState)) {
+        hasRestoredNonEmptyRef.current = true;
+      }
+      devRestoreDebugLog('restore completed', {
+        ...metrics,
+        allowEmptyPublish: restorePayload.allowEmptyPublish,
+      });
+      if (restorePayload.allowEmptyPublish) {
+        devRestoreDebugLog('allow empty publish only for truly empty document');
+      }
       logRestoredContainsCode(editor);
       logRestoredContainsHighlight(editor);
       restoreCompleteRef.current = true;
@@ -978,7 +1121,7 @@ function YjsLexicalBridgePlugin({
         return;
       }
       if (!restoreCompleteRef.current) {
-        devRestoreDebugLog('blocked empty initial publish');
+        devRestoreDebugLog('blocked flush before restore');
         return;
       }
       if (!canEdit) {
@@ -991,15 +1134,25 @@ function YjsLexicalBridgePlugin({
       const nextText = editorState.read(() => readEditorText());
       const nextSerialized = normalizeSerializedCodeBlocks(JSON.stringify(editorState.toJSON()));
 
-      if (nextText.trim().length === 0 && !allowEmptyPublishRef.current) {
-        const yjsPlain = ytext.toString().trim();
-        const yjsSerialized = ylexicalState.get('serialized');
-        const yjsHasContent =
-          yjsPlain.length > 0 || hasRichLexicalSnapshot(yjsSerialized);
-        if (yjsHasContent) {
-          devRestoreDebugLog('blocked empty publish', { reason: 'yjs-has-content' });
-          return;
-        }
+      const payload = restoreLifecycle.restorePayloadRef.current;
+      const persistGuard: PersistGuardContext = {
+        allowEmptyPublish: allowEmptyPublishRef.current,
+        editorStateJson: payload?.editorStateJson ?? '',
+        previewPlainText: payload?.previewPlainText ?? '',
+        hasRestoredNonEmpty: hasRestoredNonEmptyRef.current,
+      };
+      const emptyPublishBlock = shouldBlockDestructiveEmptyPublish(
+        nextText,
+        nextSerialized,
+        ytext,
+        ylexicalState,
+        persistGuard,
+      );
+      if (emptyPublishBlock.block) {
+        devRestoreDebugLog('blocked destructive empty publish', {
+          reason: emptyPublishBlock.reason,
+        });
+        return;
       }
 
       const hasExistingText = ytext.toString().trim().length > 0;
@@ -1401,7 +1554,9 @@ function EditorToolbarPlugin({
           const topLevel = anchorNode.getTopLevelElementOrThrow();
           if ($isHeadingNode(topLevel)) {
             const tag = topLevel.getTag();
-            setBlockType(tag === 'h1' ? 'h1' : tag === 'h2' ? 'h2' : 'paragraph');
+            setBlockType(
+              tag === 'h1' ? 'h1' : tag === 'h2' ? 'h2' : tag === 'h3' ? 'h3' : 'paragraph',
+            );
             return;
           }
 
@@ -1454,7 +1609,7 @@ function EditorToolbarPlugin({
     });
   };
 
-  const applyHeading = (tag: 'h1' | 'h2') => {
+  const applyHeading = (tag: 'h1' | 'h2' | 'h3') => {
     withSelection((selection) => {
       $setBlocksType(selection, () => $createHeadingNode(tag));
     });
@@ -1513,6 +1668,10 @@ function EditorToolbarPlugin({
     }
     if (next === 'h2') {
       applyHeading('h2');
+      return;
+    }
+    if (next === 'h3') {
+      applyHeading('h3');
       return;
     }
     if (next === 'ul') {
@@ -1646,7 +1805,9 @@ function EditorToolbarPlugin({
   };
 
   const blockSelectValue =
-    blockType === 'h1' || blockType === 'h2' || blockType === 'code' ? blockType : 'paragraph';
+    blockType === 'h1' || blockType === 'h2' || blockType === 'h3' || blockType === 'code'
+      ? blockType
+      : 'paragraph';
 
   return (
     <div className={editorShell.toolbarInner}>
@@ -1688,6 +1849,7 @@ function EditorToolbarPlugin({
               { value: 'paragraph', label: 'Paragraf' },
               { value: 'h1', label: 'Başlık 1' },
               { value: 'h2', label: 'Başlık 2' },
+              { value: 'h3', label: 'Başlık 3' },
               { value: 'code', label: 'Kod Bloğu' },
             ]}
           />
@@ -1852,6 +2014,7 @@ export interface DocumentEditorShellProps {
   /** When non-empty, overrides live SON AKTİVİTE; omit or [] for presence-only rows (UI-throttled ~1s). */
   presenceActivities?: DocumentEditorShellPresenceActivity[];
   commentsPanel?: ReactNode;
+  messagesPanel?: ReactNode;
 }
 
 export function DocumentEditorShell({
@@ -1864,6 +2027,7 @@ export function DocumentEditorShell({
   memberAvatars,
   presenceActivities: presenceActivitiesProp,
   commentsPanel,
+  messagesPanel,
 }: DocumentEditorShellProps) {
   const queryClient = useQueryClient();
   const accessToken = useAuthStore((state) => state.accessToken);
@@ -1886,11 +2050,70 @@ export function DocumentEditorShell({
   const [overlayRevision, setOverlayRevision] = useState(0);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isUploadingDocument, setIsUploadingDocument] = useState(false);
+  const [rightRailTab, setRightRailTab] = useState('users');
+  const [messagesUnreadCount, setMessagesUnreadCount] = useState(0);
+  const [typingUsersById, setTypingUsersById] = useState<
+    Map<string, DocumentMessageTypingUser>
+  >(() => new Map());
+
+  const rightRailTabRef = useRef(rightRailTab);
+  const typingExpiryTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
+    new Map(),
+  );
 
   const presenceLiveSourceRef = useRef({
     activeUsers: [] as ActiveUser[],
     remoteCursors: [] as RemoteCursor[],
   });
+
+  useEffect(() => {
+    rightRailTabRef.current = rightRailTab;
+  }, [rightRailTab]);
+
+  useEffect(() => {
+    if (rightRailTab === 'messages') {
+      setMessagesUnreadCount(0);
+    }
+  }, [rightRailTab]);
+
+  const activeUserIdSet = useMemo(
+    () => new Set(activeUsers.map((user) => user.userId)),
+    [activeUsers],
+  );
+
+  const typingUsers = useMemo(
+    () => Array.from(typingUsersById.values()),
+    [typingUsersById],
+  );
+
+  const emitDocumentMessageTyping = useCallback(
+    (isTyping: boolean) => {
+      socketRef.current?.emit('document_message_typing', { documentId, isTyping });
+    },
+    [documentId],
+  );
+
+  const messagesPanelRendered = useMemo(() => {
+    if (!messagesPanel) return null;
+    if (!isValidElement(messagesPanel)) return messagesPanel;
+    return cloneElement(messagesPanel as ReactElement<DocumentMessagesPanelProps>, {
+      activeUserIds: activeUserIdSet,
+      typingUsers,
+      onEmitTyping: emitDocumentMessageTyping,
+    });
+  }, [messagesPanel, activeUserIdSet, typingUsers, emitDocumentMessageTyping]);
+
+  const editorRestoreCompleteRef = useRef(false);
+  const hasRestoredNonEmptyContentRef = useRef(false);
+  const restorePayloadRef = useRef<DocumentRestorePayload | null>(null);
+  const restoreLifecycle = useMemo<RestoreLifecycleRefs>(
+    () => ({
+      restoreCompleteRef: editorRestoreCompleteRef,
+      hasRestoredNonEmptyRef: hasRestoredNonEmptyContentRef,
+      restorePayloadRef,
+    }),
+    [],
+  );
 
   const pending = useRef<Uint8Array[]>([]);
   const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1990,6 +2213,10 @@ export function DocumentEditorShell({
     setActiveUsers([]);
     setRemoteCursors([]);
     setRemoteCursorLayouts([]);
+    editorRestoreCompleteRef.current = false;
+    hasRestoredNonEmptyContentRef.current = false;
+    restorePayloadRef.current = null;
+    pending.current = [];
 
     void (async () => {
       try {
@@ -1999,14 +2226,20 @@ export function DocumentEditorShell({
         const persistedSerializedState =
           typeof state.editorStateJson === 'string' ? state.editorStateJson : '';
         const bytes = base64ToUint8(state.stateUpdateBase64);
-        const previewPlainText = normalizeFallbackPlainText(initialContentRef.current);
+        const previewFromState =
+          typeof state.previewContent === 'string'
+            ? normalizeFallbackPlainText(state.previewContent)
+            : '';
+        const previewFromDetail = normalizeFallbackPlainText(initialContentRef.current);
+        const previewPlainText =
+          previewFromState.length > 0 ? previewFromState : previewFromDetail;
 
         devRestoreDebugLog('state response', {
           hasStateUpdateBase64: bytes.length > 0,
-          stateUpdateBase64Length: bytes.byteLength,
           hasEditorStateJson: persistedSerializedState.length > 0,
+          previewLength: previewPlainText.length,
+          stateUpdateBase64Length: bytes.byteLength,
           editorStateJsonLength: persistedSerializedState.length,
-          previewContentLength: previewPlainText.length,
         });
 
         if (bytes.length > 0) {
@@ -2089,11 +2322,13 @@ export function DocumentEditorShell({
           previewPlainText.length === 0;
 
         if (cancelled) return;
-        setRestorePayload({
+        const payload: DocumentRestorePayload = {
           editorStateJson: persistedSerializedState,
           previewPlainText,
           allowEmptyPublish,
-        });
+        };
+        restorePayloadRef.current = payload;
+        setRestorePayload(payload);
         setHydrated(true);
       } catch (err) {
         if (cancelled) return;
@@ -2269,15 +2504,48 @@ export function DocumentEditorShell({
 
   const flushPending = useCallback(async () => {
     if (pending.current.length === 0) return;
+    if (!editorRestoreCompleteRef.current) {
+      devRestoreDebugLog('blocked flush before restore');
+      pending.current = [];
+      return;
+    }
 
     const merged = mergePendingUpdates(pending.current);
     pending.current = [];
+
+    const serializedState = ylexicalState.get('serialized');
+    const payload = restorePayloadRef.current;
+    const serializedForGuard =
+      typeof serializedState === 'string' ? serializedState : '';
+    const plainFromYjs = ytext.toString();
+    const persistGuard: PersistGuardContext = {
+      allowEmptyPublish: payload?.allowEmptyPublish ?? false,
+      editorStateJson: payload?.editorStateJson ?? '',
+      previewPlainText: payload?.previewPlainText ?? '',
+      hasRestoredNonEmpty: hasRestoredNonEmptyContentRef.current,
+    };
+    const flushBlock = shouldBlockDestructiveEmptyPublish(
+      plainFromYjs,
+      serializedForGuard,
+      ytext,
+      ylexicalState,
+      persistGuard,
+    );
+    if (flushBlock.block) {
+      devRestoreDebugLog('blocked destructive empty publish', {
+        reason: flushBlock.reason,
+        phase: 'flush',
+      });
+      return;
+    }
+    if (!yjsHasSubstantiveContent(ytext, ylexicalState)) {
+      return;
+    }
 
     setPersistStatus('saving');
     setPersistMessage(null);
 
     try {
-      const serializedState = ylexicalState.get('serialized');
       let normalizedSerializedState: string | undefined;
       if (
         typeof serializedState === 'string' &&
@@ -2317,7 +2585,7 @@ export function DocumentEditorShell({
       setPersistStatus('error');
       setPersistMessage(getApiErrorMessage(err));
     }
-  }, [documentId, ydoc, ylexicalState]);
+  }, [documentId, ydoc, ylexicalState, ytext]);
 
   useEffect(() => {
     const onUpdate = (update: Uint8Array, origin: unknown) => {
@@ -2336,6 +2604,10 @@ export function DocumentEditorShell({
       });
       if (origin === LOAD_ORIGIN || origin === REMOTE_ORIGIN) return;
       if (!canEdit) return;
+      if (!editorRestoreCompleteRef.current) {
+        devRestoreDebugLog('blocked flush before restore');
+        return;
+      }
 
       pending.current.push(update);
 
@@ -2359,7 +2631,12 @@ export function DocumentEditorShell({
         flushTimer.current = null;
       }
 
-      void flushPending();
+      if (editorRestoreCompleteRef.current) {
+        void flushPending();
+      } else {
+        pending.current = [];
+        devRestoreDebugLog('blocked flush before restore', { phase: 'unmount' });
+      }
     };
   }, [canEdit, flushPending, ydoc]);
 
@@ -2653,6 +2930,79 @@ export function DocumentEditorShell({
       });
     };
 
+    const clearTypingUser = (userId: string) => {
+      const timer = typingExpiryTimersRef.current.get(userId);
+      if (timer) {
+        clearTimeout(timer);
+        typingExpiryTimersRef.current.delete(userId);
+      }
+      setTypingUsersById((prev) => {
+        if (!prev.has(userId)) return prev;
+        const next = new Map(prev);
+        next.delete(userId);
+        return next;
+      });
+    };
+
+    const scheduleTypingExpiry = (userId: string) => {
+      const existing = typingExpiryTimersRef.current.get(userId);
+      if (existing) clearTimeout(existing);
+      typingExpiryTimersRef.current.set(
+        userId,
+        setTimeout(() => {
+          typingExpiryTimersRef.current.delete(userId);
+          setTypingUsersById((prev) => {
+            if (!prev.has(userId)) return prev;
+            const next = new Map(prev);
+            next.delete(userId);
+            return next;
+          });
+        }, 3500),
+      );
+    };
+
+    const handleDocumentMessageCreated = (event: DocumentMessageCreatedEvent) => {
+      if (event.documentId !== documentId) return;
+      upsertDocumentMessageInCache(
+        queryClient,
+        documentId,
+        event.message as DocumentMessage,
+        authUser?.id,
+      );
+
+      const authorId = event.message.author.id;
+      const isOwnMessage =
+        authorId === authUser?.id || event.message.isMine === true;
+      if (!isOwnMessage && rightRailTabRef.current !== 'messages') {
+        setMessagesUnreadCount((count) => count + 1);
+      }
+
+      clearTypingUser(authorId);
+    };
+
+    const handleDocumentMessageDeleted = (event: DocumentMessageDeletedEvent) => {
+      if (event.documentId !== documentId) return;
+      removeDocumentMessageFromCache(queryClient, documentId, event.messageId);
+    };
+
+    const handleDocumentMessageTyping = (event: DocumentMessageTypingEvent) => {
+      if (event.documentId !== documentId) return;
+      if (event.user.id === authUser?.id) return;
+
+      const userId = event.user.id;
+      if (event.isTyping) {
+        setTypingUsersById((prev) => {
+          const next = new Map(prev);
+          next.set(userId, event.user);
+          return next;
+        });
+        scheduleTypingExpiry(userId);
+        return;
+      }
+
+      clearTypingUser(userId);
+    };
+
     const joinRoom = () => {
       console.log('[realtime] emitting join_document:', documentId);
 
@@ -2674,6 +3024,9 @@ export function DocumentEditorShell({
     socket.on('document_update', handleDocumentUpdate);
     socket.on('document_cursor', handleDocumentCursor);
     socket.on('document_member_updated', handleDocumentMemberUpdated);
+    socket.on('document_message_created', handleDocumentMessageCreated);
+    socket.on('document_message_deleted', handleDocumentMessageDeleted);
+    socket.on('document_message_typing', handleDocumentMessageTyping);
     socketRef.current = socket;
 
     if (socket.connected) {
@@ -2689,6 +3042,12 @@ export function DocumentEditorShell({
       socket.off('document_update', handleDocumentUpdate);
       socket.off('document_cursor', handleDocumentCursor);
       socket.off('document_member_updated', handleDocumentMemberUpdated);
+      socket.off('document_message_created', handleDocumentMessageCreated);
+      socket.off('document_message_deleted', handleDocumentMessageDeleted);
+      socket.off('document_message_typing', handleDocumentMessageTyping);
+      typingExpiryTimersRef.current.forEach((timer) => clearTimeout(timer));
+      typingExpiryTimersRef.current.clear();
+      setTypingUsersById(new Map());
       socketRef.current = null;
       socket.disconnect();
     };
@@ -2867,7 +3226,7 @@ export function DocumentEditorShell({
                 </Avatar.Group>
                 <Button
                   size="compact-sm"
-                  variant="default"
+                  variant="light"
                   leftSection={<IconDownload size={14} />}
                   onClick={() => setExportModalOpen(true)}
                 >
@@ -2916,7 +3275,7 @@ export function DocumentEditorShell({
             <div className={editorShell.bodyThreeCol}>
               <aside className={editorShell.leftOutline}>
                 <div className={editorShell.outlineHeader}>İÇİNDEKİLER</div>
-                <nav className={editorShell.outlineNav} aria-label="İçindekiler" />
+                <DocumentOutlinePanel scrollContainerRef={editorContainerRef} />
               </aside>
 
               <div className={editorShell.centerColumn}>
@@ -3008,7 +3367,10 @@ export function DocumentEditorShell({
 
               <aside className={`${editorShell.rightRail} flowdocs-editor-right-rail`}>
                 <Tabs
-                  defaultValue="users"
+                  value={rightRailTab}
+                  onChange={(value) => {
+                    if (value) setRightRailTab(value);
+                  }}
                   className={editorShell.railTabs}
                   keepMounted={false}
                   style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
@@ -3016,14 +3378,31 @@ export function DocumentEditorShell({
                   <Tabs.List grow>
                     <Tabs.Tab value="users">Kullanıcılar</Tabs.Tab>
                     <Tabs.Tab value="comments">Yorumlar</Tabs.Tab>
-                    <Tabs.Tab value="ws">WS Log</Tabs.Tab>
+                    <Tabs.Tab value="messages">
+                      <span className={editorShell.messagesTabLabel}>
+                        Mesajlar
+                        {messagesUnreadCount > 0 ? (
+                          <span
+                            className={editorShell.messagesTabBadge}
+                            aria-label={`${messagesUnreadCount} okunmamış mesaj`}
+                          >
+                            {messagesUnreadCount > 99 ? '99+' : messagesUnreadCount}
+                          </span>
+                        ) : null}
+                      </span>
+                    </Tabs.Tab>
                   </Tabs.List>
                   <Tabs.Panel value="users" pt={0} className={editorShell.railPanel}>
                     <ScrollArea
                       h="100%"
                       scrollbarSize={6}
                       type="auto"
-                      classNames={{ root: editorShell.railUsersScroll, viewport: editorShell.railUsersViewport }}
+                      classNames={{
+                        root: `${editorShell.railUsersScroll} ${editorShell.railScrollRoot}`,
+                        viewport: `${editorShell.railUsersViewport} ${editorShell.railScrollViewport}`,
+                        content: editorShell.railScrollContent,
+                        thumb: editorShell.railScrollThumb,
+                      }}
                     >
                       <Stack gap={0} className={editorShell.railUsersBody}>
                         <Text className={editorShell.presenceSectionLabel}>
@@ -3079,7 +3458,7 @@ export function DocumentEditorShell({
                                       className={editorShell.presenceStatusDot}
                                       style={{
                                         backgroundColor: dot,
-                                        boxShadow: `0 0 8px ${dot}`,
+                                        boxShadow: `0 0 6px ${dot}99`,
                                       }}
                                       aria-hidden
                                     />
@@ -3098,7 +3477,16 @@ export function DocumentEditorShell({
                     </ScrollArea>
                   </Tabs.Panel>
                   <Tabs.Panel value="comments" pt={0} className={editorShell.railPanel}>
-                    <ScrollArea h="100%" scrollbarSize={6} type="auto">
+                    <ScrollArea
+                      h="100%"
+                      scrollbarSize={6}
+                      type="auto"
+                      classNames={{
+                        root: editorShell.railScrollRoot,
+                        viewport: editorShell.railScrollViewport,
+                        content: editorShell.railScrollContent,
+                      }}
+                    >
                       <Box className={editorShell.commentsTabBody}>
                         {commentsPanel ?? (
                           <Text size="sm" className={editorShell.muted}>
@@ -3108,10 +3496,12 @@ export function DocumentEditorShell({
                       </Box>
                     </ScrollArea>
                   </Tabs.Panel>
-                  <Tabs.Panel value="ws" pt={0} className={editorShell.railPanel}>
-                    <div className={editorShell.wsLogPlaceholder}>
-                      WebSocket olay günlüğü burada listelenecek (yakında).
-                    </div>
+                  <Tabs.Panel value="messages" pt={0} className={editorShell.railPanel}>
+                    {messagesPanelRendered ?? messagesPanel ?? (
+                      <Text size="sm" className={editorShell.muted} p="md">
+                        Mesajlar bu sekmede gösterilecek.
+                      </Text>
+                    )}
                   </Tabs.Panel>
                 </Tabs>
               </aside>
@@ -3124,6 +3514,7 @@ export function DocumentEditorShell({
               ylexicalState={ylexicalState}
               canEdit={canEdit}
               restorePayload={restorePayload}
+              restoreLifecycle={restoreLifecycle}
             />
             <CommentSelectionCapturePlugin documentId={documentId} />
             <ImageClipboardPlugin />

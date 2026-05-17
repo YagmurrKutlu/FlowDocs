@@ -18,6 +18,30 @@ export interface DocumentMemberUpdatedRealtimeEvent {
   documentId: string;
 }
 
+export interface DocumentMessageRealtimeAuthor {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export interface DocumentMessageRealtimePayload {
+  id: string;
+  documentId: string;
+  body: string;
+  createdAt: string;
+  author: DocumentMessageRealtimeAuthor;
+}
+
+export interface DocumentMessageCreatedRealtimeEvent {
+  documentId: string;
+  message: DocumentMessageRealtimePayload;
+}
+
+export interface DocumentMessageDeletedRealtimeEvent {
+  documentId: string;
+  messageId: string;
+}
+
 export interface DocumentCursorState {
   documentId: string;
   userId: string;
@@ -132,6 +156,20 @@ export class RealtimeService {
     this.server
       .to(this.roomName(event.documentId))
       .emit('document_member_updated', event);
+  }
+
+  publishDocumentMessageCreated(event: DocumentMessageCreatedRealtimeEvent): void {
+    if (!this.server) return;
+    this.server
+      .to(this.roomName(event.documentId))
+      .emit('document_message_created', event);
+  }
+
+  publishDocumentMessageDeleted(event: DocumentMessageDeletedRealtimeEvent): void {
+    if (!this.server) return;
+    this.server
+      .to(this.roomName(event.documentId))
+      .emit('document_message_deleted', event);
   }
 
   updateDocumentCursor(params: {

@@ -4,7 +4,9 @@ import { ConfigModule } from '../config/config.module';
 import { MediaModule } from '../media/media.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { RealtimeModule } from '../realtime/realtime.module';
+import { DocumentMessagesService } from './document-messages.service';
 import { DocumentExportService } from './document-export.service';
+import { DocumentStateRecoveryService } from './document-state-recovery.service';
 import { DocumentYjsPersistenceService } from './document-yjs-persistence.service';
 import { DocumentsController } from './documents.controller';
 import { DocumentsService } from './documents.service';
@@ -12,6 +14,12 @@ import { DocumentsService } from './documents.service';
 @Module({
   imports: [PrismaModule, AuthModule, ConfigModule, RealtimeModule, MediaModule],
   controllers: [DocumentsController],
-  providers: [DocumentsService, DocumentYjsPersistenceService, DocumentExportService],
+  providers: [
+    DocumentsService,
+    DocumentMessagesService,
+    DocumentYjsPersistenceService,
+    DocumentStateRecoveryService,
+    DocumentExportService,
+  ],
 })
 export class DocumentsModule {}

@@ -124,18 +124,26 @@ export class DocumentsService {
   }
 
   async assertDocumentExportAccess(userId: string, documentId: string): Promise<string> {
+    return (await this.assertDocumentReadAccess(userId, documentId)).documentTitle;
+  }
+
+  async assertDocumentReadAccess(userId: string, documentId: string) {
     const document = await this.prisma.document.findUnique({
       where: { id: documentId },
       select: { id: true, title: true },
     });
     if (!document) {
-      throw new NotFoundException('Document bulunamadı.');
+      throw new NotFoundException('Document not found.');
     }
     const access = await this.getDocumentAccessContext(userId, documentId);
     if (!access || !access.permissions.canRead) {
-      throw new ForbiddenException('Bu dokümana erişim yetkiniz yok.');
+      throw new ForbiddenException('You do not have access to this document.');
     }
-    return document.title;
+    return {
+      documentId: document.id,
+      documentTitle: document.title,
+      ...access,
+    };
   }
 
   async getDocumentById(userId: string, documentId: string) {

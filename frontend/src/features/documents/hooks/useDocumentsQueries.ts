@@ -3,9 +3,12 @@ import {
   addDocumentMember,
   createDocument,
   createDocumentComment,
+  createDocumentMessage,
   deleteDocumentComment,
+  deleteDocumentMessage,
   fetchDocumentById,
   fetchDocumentComments,
+  fetchDocumentMessages,
   fetchDocumentMembers,
   fetchDocuments,
   removeDocumentMember,
@@ -21,6 +24,11 @@ import type {
   UpdateDocumentMemberPayload,
   UpdateDocumentCommentPayload,
 } from '../types/document.types';
+import {
+  normalizeDocumentMessage,
+  removeDocumentMessageFromCache,
+  upsertDocumentMessageInCache,
+} from '../utils/document-messages-cache';
 
 export const documentsQueryKeys = {
   all: ['documents'] as const,
@@ -28,6 +36,7 @@ export const documentsQueryKeys = {
   detail: (id: string) => [...documentsQueryKeys.all, 'detail', id] as const,
   members: (id: string) => [...documentsQueryKeys.all, 'members', id] as const,
   comments: (id: string) => [...documentsQueryKeys.all, 'comments', id] as const,
+  messages: (id: string) => ['document-messages', id] as const,
 };
 
 export function useDocumentsListQuery() {
@@ -195,6 +204,44 @@ export function useDeleteDocumentCommentMutation(documentId: string) {
       void queryClient.invalidateQueries({
         queryKey: documentsQueryKeys.comments(documentId),
       });
+    },
+  });
+}
+
+export function useDocumentMessagesQuery(documentId: string | undefined) {
+  return useQuery({
+    queryKey: documentsQueryKeys.messages(documentId ?? ''),
+    queryFn: () => fetchDocumentMessages(documentId!),
+    enabled: Boolean(documentId),
+  });
+}
+
+export function useCreateDocumentMessageMutation(
+  documentId: string,
+  currentUserId: string | undefined,
+) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: string) => createDocumentMessage(documentId, body),
+    onSuccess: ({ message }) => {
+      upsertDocumentMessageInCache(
+        queryClient,
+        documentId,
+        normalizeDocumentMessage(message, currentUserId),
+        currentUserId,
+      );
+    },
+  });
+}
+
+export function useDeleteDocumentMessageMutation(documentId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (messageId: string) => deleteDocumentMessage(documentId, messageId),
+    onSuccess: (_result, messageId) => {
+      removeDocumentMessageFromCache(queryClient, documentId, messageId);
     },
   });
 }

@@ -29,7 +29,8 @@ export function GlobalLayout() {
           borderRight: '1px solid var(--fd-border-subtle)',
         },
         header: {
-          backgroundColor: 'var(--fd-surface-app)',
+          backgroundColor: 'var(--fd-surface-header)',
+          backgroundImage: 'none',
           borderBottom: '1px solid var(--fd-border-subtle)',
         },
       }}

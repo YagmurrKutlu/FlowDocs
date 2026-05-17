@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -9,6 +10,10 @@ import { DocumentRole, Prisma, WorkspaceRole } from '@prisma/client';
 import * as Y from 'yjs';
 import { AppConfigService } from '../config/config.service';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  evaluateDestructiveEmptyRejection,
+  hasRichLexicalEditorStateJson,
+} from './document-persistence-guard';
 
 type Db = Prisma.TransactionClient | PrismaService;
 
@@ -45,16 +50,38 @@ export class DocumentYjsPersistenceService {
         })
       : totalUpdates;
 
-    const ydoc = await this.restoreYDoc(this.prisma, documentId);
+    let ydoc = await this.restoreYDoc(this.prisma, documentId);
+    const editorStateRow = await this.prisma.$queryRaw<
+      Array<{ editorStateJson: string | null; previewContent: string | null }>
+    >`SELECT "editorStateJson"::text as "editorStateJson", "previewContent" FROM "Document" WHERE "id" = ${documentId} LIMIT 1`;
+    const editorStateJson = editorStateRow[0]?.editorStateJson ?? null;
+    const previewContent = editorStateRow[0]?.previewContent ?? null;
+
+    if (
+      !this.yjsHasSubstantiveContent(ydoc) &&
+      !this.hasRichEditorStateJson(editorStateJson) &&
+      (previewContent?.trim().length ?? 0) === 0 &&
+      totalUpdates > 0
+    ) {
+      const recovered = await this.tryRecoverNonEmptyYDoc(documentId);
+      if (recovered) {
+        this.logger.warn(
+          JSON.stringify({
+            event: 'document_state_recovered_from_snapshot',
+            documentId,
+          }),
+        );
+        ydoc = recovered;
+      }
+    }
+
     const stateUpdate = Y.encodeStateAsUpdate(ydoc);
     const stateUpdateBase64 = Buffer.from(stateUpdate).toString('base64');
-    const editorStateRow = await this.prisma.$queryRaw<
-      Array<{ editorStateJson: string | null }>
-    >`SELECT "editorStateJson"::text as "editorStateJson" FROM "Document" WHERE "id" = ${documentId} LIMIT 1`;
 
     return {
       currentVersion: document.currentVersion,
-      editorStateJson: editorStateRow[0]?.editorStateJson ?? null,
+      editorStateJson,
+      previewContent,
       snapshotVersion,
       totalUpdates,
       updatesAfterSnapshot,
@@ -88,6 +115,12 @@ export class DocumentYjsPersistenceService {
     const snapshotInterval = this.appConfig.document.snapshotInterval;
     const editorStateJsonValue = this.parseEditorStateJsonForStorage(editorStateJson);
 
+    const storedRow = await this.prisma.$queryRaw<
+      Array<{ editorStateJson: string | null; previewContent: string | null }>
+    >`SELECT "editorStateJson"::text as "editorStateJson", "previewContent" FROM "Document" WHERE "id" = ${documentId} LIMIT 1`;
+    const storedEditorStateJson = storedRow[0]?.editorStateJson ?? null;
+    const storedPreviewContent = this.previewContentToPlain(storedRow[0]?.previewContent);
+
     try {
       return await this.prisma.$transaction(async (tx) => {
         const document = await this.findReadableDocumentInTx(
@@ -106,13 +139,40 @@ export class DocumentYjsPersistenceService {
         }
 
         const ydoc = await this.restoreYDoc(tx, documentId);
+        const yjsBeforeHasContent = this.yjsHasSubstantiveContent(ydoc);
         try {
           Y.applyUpdate(ydoc, updateBytes);
         } catch {
           throw new BadRequestException('Geçersiz Yjs güncellemesi.');
         }
 
+        const yjsAfterHasContent = this.yjsHasSubstantiveContent(ydoc);
+        if (
+          evaluateDestructiveEmptyRejection({
+            documentEditorStateJson: storedEditorStateJson,
+            documentPreviewContent: storedPreviewContent,
+            yjsBeforeHasContent,
+            yjsAfterHasContent,
+            incomingEditorStateJson: editorStateJson,
+          })
+        ) {
+          this.logger.warn(
+            `[persistence-guard] rejected destructive empty update ${JSON.stringify({
+              documentId,
+              userId,
+              yjsBeforeHasContent,
+              yjsAfterHasContent,
+              hasStoredEditorStateJson: hasRichLexicalEditorStateJson(storedEditorStateJson),
+              hasStoredPreview: storedPreviewContent.trim().length > 0,
+            })}`,
+          );
+          throw new ConflictException(
+            'Destructive empty update rejected; document content is preserved.',
+          );
+        }
+
         const plainTextContent = ydoc.getText('content').toString();
+        const hasContentAfter = yjsAfterHasContent;
 
         const updated = await tx.document.update({
           where: { id: documentId },
@@ -138,18 +198,32 @@ export class DocumentYjsPersistenceService {
           },
         });
 
-        if (version > 0 && version % snapshotInterval === 0) {
-          const snapshotBinary = Y.encodeStateAsUpdate(ydoc);
-          const stateVector = Y.encodeStateVector(ydoc);
-          await tx.documentSnapshot.create({
-            data: {
-              documentId,
-              version,
-              snapshotBinary: Buffer.from(snapshotBinary),
-              stateVector: Buffer.from(stateVector),
-              capturedById: userId,
-            },
-          });
+        if (
+          version > 0 &&
+          version % snapshotInterval === 0 &&
+          hasContentAfter
+        ) {
+          try {
+            const snapshotBinary = Y.encodeStateAsUpdate(ydoc);
+            const stateVector = Y.encodeStateVector(ydoc);
+            await tx.documentSnapshot.create({
+              data: {
+                documentId,
+                version,
+                snapshotBinary: Buffer.from(snapshotBinary),
+                stateVector: Buffer.from(stateVector),
+                capturedById: userId,
+              },
+            });
+          } catch (error) {
+            this.logger.error(
+              `[persistence-guard] snapshot create failed ${JSON.stringify({
+                documentId,
+                version,
+                message: error instanceof Error ? error.message : String(error),
+              })}`,
+            );
+          }
         }
 
         return { version };
@@ -164,7 +238,11 @@ export class DocumentYjsPersistenceService {
         );
       }
 
-      if (error instanceof BadRequestException || error instanceof ForbiddenException) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof ForbiddenException ||
+        error instanceof ConflictException
+      ) {
         throw error;
       }
 
@@ -285,6 +363,55 @@ export class DocumentYjsPersistenceService {
         },
       },
     });
+  }
+
+  private previewContentToPlain(value: string | null | undefined): string {
+    if (value === null || value === undefined) return '';
+    return value.trim();
+  }
+
+  private yjsHasSubstantiveContent(ydoc: Y.Doc): boolean {
+    const plain = ydoc.getText('content').toString().trim();
+    if (plain.length > 0) return true;
+    return hasRichLexicalEditorStateJson(
+      ydoc.getMap<string>('lexicalState').get('serialized'),
+    );
+  }
+
+  private hasRichEditorStateJson(serialized: string | null | undefined): boolean {
+    return hasRichLexicalEditorStateJson(serialized);
+  }
+
+  private async tryRecoverNonEmptyYDoc(documentId: string): Promise<Y.Doc | null> {
+    const snapshots = await this.prisma.documentSnapshot.findMany({
+      where: { documentId },
+      orderBy: { version: 'desc' },
+      take: 12,
+      select: { version: true, snapshotBinary: true },
+    });
+
+    for (const snapshot of snapshots) {
+      const candidate = new Y.Doc();
+      Y.applyUpdate(candidate, new Uint8Array(snapshot.snapshotBinary));
+      if (!this.yjsHasSubstantiveContent(candidate)) {
+        continue;
+      }
+
+      const updates = await this.prisma.documentUpdate.findMany({
+        where: { documentId, version: { gt: snapshot.version } },
+        orderBy: { version: 'asc' },
+        select: { updateBinary: true },
+      });
+      for (const row of updates) {
+        Y.applyUpdate(candidate, new Uint8Array(row.updateBinary));
+      }
+
+      if (this.yjsHasSubstantiveContent(candidate)) {
+        return candidate;
+      }
+    }
+
+    return null;
   }
 
   private canEditDocument(

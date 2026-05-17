@@ -51,6 +51,7 @@ model User {
   documentSnapshots   DocumentSnapshot[] @relation("SnapshotAuthor")
   authoredDocumentComments DocumentComment[] @relation("DocumentCommentAuthor")
   resolvedDocumentComments DocumentComment[] @relation("DocumentCommentResolver")
+  authoredDocumentMessages DocumentMessage[] @relation("DocumentMessageAuthor")
 }
 
 model Workspace {
@@ -103,11 +104,27 @@ model Document {
   mediaFiles     MediaFile[]
   activities     ActivityLog[]
   comments       DocumentComment[]
+  messages       DocumentMessage[]
 
   @@unique([workspaceId, slug])
   @@index([workspaceId])
   @@index([createdById])
   @@index([lastEditedById])
+}
+
+model DocumentMessage {
+  id         String    @id @default(cuid())
+  documentId String
+  authorId   String
+  body       String
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+  document   Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  author     User      @relation("DocumentMessageAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([documentId, createdAt])
+  @@index([authorId])
 }
 
 model DocumentComment {

@@ -14,17 +14,16 @@ import {
   Table,
   Text,
   TextInput,
-  Title,
 } from '@mantine/core';
 import { IconTrash } from '@tabler/icons-react';
 import axios from 'axios';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { AppCard } from '../../../components/ui/AppCard';
 import { PageContainer } from '../../../components/ui/PageContainer';
 import { getApiErrorMessage } from '../../../shared/api/errors';
 import { useAuthStore } from '../../../store/auth.store';
 import { DocumentCommentsPanel } from '../components/DocumentCommentsPanel';
+import { DocumentMessagesPanel } from '../components/DocumentMessagesPanel';
 import { DocumentEditorShell } from '../editor/DocumentEditorShell';
 import {
   useAddDocumentMemberMutation,
@@ -108,101 +107,8 @@ export function DocumentDetailPage() {
     void removeMemberMutation.mutate(member.id);
   };
 
-  return (
-    <PageContainer>
-      <Stack gap="lg">
-        {detailQuery.isLoading ? (
-          <Stack gap="md">
-            <Skeleton h={36} w="60%" radius="md" />
-            <Skeleton h={24} w="40%" radius="md" />
-            <Skeleton h={200} radius="lg" />
-          </Stack>
-        ) : null}
-
-        {detailQuery.isError ? (
-          <Alert
-            color={isForbidden ? 'orange' : isNotFound ? 'gray' : 'red'}
-            title={
-              isForbidden
-                ? 'Access denied'
-                : isNotFound
-                  ? 'Document not found'
-                  : 'Something went wrong'
-            }
-            radius="md"
-          >
-            <Stack gap="sm">
-              <Text size="sm">{getApiErrorMessage(detailQuery.error)}</Text>
-              <Button variant="light" onClick={() => navigate('/documents')}>
-                Return to documents
-              </Button>
-            </Stack>
-          </Alert>
-        ) : null}
-
-        {detailQuery.isSuccess && detailQuery.data ? (
-          <>
-            <Box className={docPageStyles.editorPage}>
-              <Stack gap={0} style={{ flex: 1, minHeight: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
-                {id ? (
-                  <Box className={docPageStyles.editorShellHost}>
-                    <DocumentEditorShell
-                      documentId={id}
-                      canEdit={canEdit}
-                      initialContent={detailQuery.data.document.previewContent}
-                      documentTitle={detailQuery.data.document.title}
-                      onShareClick={() => setShareModalOpen(true)}
-                      shareDisabled={!detailQuery.isSuccess}
-                      memberAvatars={membersQuery.data?.members.map((m) => ({
-                        userId: m.userId,
-                        fullName: m.fullName,
-                        avatarUrl: m.avatarUrl,
-                      }))}
-                      commentsPanel={
-                        <DocumentCommentsPanel
-                          documentId={id}
-                          canRead={canRead}
-                          canEdit={canEdit}
-                          currentUserId={authUser?.id}
-                        />
-                      }
-                    />
-                  </Box>
-                ) : null}
-              </Stack>
-            </Box>
-
-            <AppCard p="lg" radius="lg">
-              <Group justify="space-between" align="center">
-                <div>
-                  <Title order={4}>Sharing</Title>
-                  <Text size="sm" c="dimmed">
-                    Current role: {detailQuery.data.document.currentUserRole ?? 'N/A'}
-                  </Text>
-                </div>
-                <Button
-                  variant="light"
-                  onClick={() => setShareModalOpen(true)}
-                  disabled={!canRead}
-                >
-                  Manage members
-                </Button>
-              </Group>
-            </AppCard>
-          </>
-        ) : null}
-
-        {detailQuery.isFetching && !detailQuery.isLoading ? (
-          <Group>
-            <Loader size="sm" color="violet" />
-            <Text size="sm" c="dimmed">
-              Updating…
-            </Text>
-          </Group>
-        ) : null}
-      </Stack>
-
-      <Modal
+  const shareModal = (
+    <Modal
         opened={shareModalOpen}
         onClose={() => setShareModalOpen(false)}
         title="Share document"
@@ -363,7 +269,95 @@ export function DocumentDetailPage() {
             </Table>
           ) : null}
         </Stack>
-      </Modal>
-    </PageContainer>
+    </Modal>
   );
+
+  if (detailQuery.isLoading) {
+    return (
+      <PageContainer>
+        <Stack gap="md">
+          <Skeleton h={36} w="60%" radius="md" />
+          <Skeleton h={24} w="40%" radius="md" />
+          <Skeleton h={200} radius="lg" />
+        </Stack>
+      </PageContainer>
+    );
+  }
+
+  if (detailQuery.isError) {
+    return (
+      <PageContainer>
+        <Alert
+          color={isForbidden ? 'orange' : isNotFound ? 'gray' : 'red'}
+          title={
+            isForbidden
+              ? 'Access denied'
+              : isNotFound
+                ? 'Document not found'
+                : 'Something went wrong'
+          }
+          radius="md"
+        >
+          <Stack gap="sm">
+            <Text size="sm">{getApiErrorMessage(detailQuery.error)}</Text>
+            <Button variant="light" onClick={() => navigate('/documents')}>
+              Return to documents
+            </Button>
+          </Stack>
+        </Alert>
+      </PageContainer>
+    );
+  }
+
+  if (detailQuery.isSuccess && detailQuery.data && id) {
+    return (
+      <>
+        <Box className={docPageStyles.pageRoot}>
+          <Box className={docPageStyles.editorPage}>
+            <Box className={docPageStyles.editorShellHost}>
+              <DocumentEditorShell
+                documentId={id}
+                canEdit={canEdit}
+                initialContent={detailQuery.data.document.previewContent}
+                documentTitle={detailQuery.data.document.title}
+                onShareClick={() => setShareModalOpen(true)}
+                shareDisabled={!detailQuery.isSuccess}
+                memberAvatars={membersQuery.data?.members.map((m) => ({
+                  userId: m.userId,
+                  fullName: m.fullName,
+                  avatarUrl: m.avatarUrl,
+                }))}
+                commentsPanel={
+                  <DocumentCommentsPanel
+                    documentId={id}
+                    canRead={canRead}
+                    canEdit={canEdit}
+                    currentUserId={authUser?.id}
+                  />
+                }
+                messagesPanel={
+                  <DocumentMessagesPanel
+                    documentId={id}
+                    canRead={canRead}
+                    currentUserId={authUser?.id}
+                  />
+                }
+              />
+            </Box>
+          </Box>
+          {detailQuery.isFetching ? (
+            <Group className={docPageStyles.fetchingOverlay} gap="xs">
+              <Loader size="sm" color="violet" />
+              <Text size="sm" c="dimmed">
+                Updating…
+              </Text>
+            </Group>
+          ) : null}
+        </Box>
+        {shareModal}
+      </>
+    );
+  }
+
+  return null;
 }

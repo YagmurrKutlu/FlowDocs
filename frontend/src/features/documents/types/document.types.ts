@@ -81,6 +81,7 @@ export interface CreateDocumentResponse {
 export interface DocumentStateResponse {
   currentVersion: number;
   editorStateJson?: string | null;
+  previewContent?: string | null;
   snapshotVersion: number | null;
   totalUpdates: number;
   updatesAfterSnapshot: number;
@@ -219,4 +220,31 @@ export interface ResolveDocumentCommentResponse {
 
 export interface DeleteDocumentCommentResponse {
   deleted: boolean;
+}
+
+export interface DocumentMessageAuthor {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export interface DocumentMessage {
+  id: string;
+  documentId: string;
+  body: string;
+  createdAt: string;
+  author: DocumentMessageAuthor;
+  isMine: boolean;
+}
+
+export interface DocumentMessagesResponse {
+  messages: DocumentMessage[];
+}
+
+export interface CreateDocumentMessageResponse {
+  message: DocumentMessage;
+}
+
+export interface DeleteDocumentMessageResponse {
+  deleted: true;
 }

@@ -12,8 +12,11 @@
   gap: 16px;
   flex-wrap: wrap;
   min-height: 70px;
-  padding: 18px 0 20px;
-  border-bottom: 1px solid var(--fd-border-subtle);
+  margin: 0 -24px;
+  padding: 18px 24px 20px;
+  background: var(--fd-surface-header);
+  background-image: none;
+  border-bottom: 1px solid rgba(139, 133, 212, 0.12);
 }
 
 .titleBlock {

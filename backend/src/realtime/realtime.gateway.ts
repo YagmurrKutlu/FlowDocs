@@ -37,6 +37,11 @@ interface CursorUpdatePayload {
   focusOffset: number;
 }
 
+interface DocumentMessageTypingPayload {
+  documentId: string;
+  isTyping: boolean;
+}
+
 interface AuthenticatedSocket extends Socket {
   data: Socket['data'] & {
     user?: AuthenticatedUser;
@@ -149,6 +154,48 @@ export class RealtimeGateway
     );
     ack?.(response);
     return response;
+  }
+
+  @SubscribeMessage('document_message_typing')
+  async handleDocumentMessageTyping(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() payload: DocumentMessageTypingPayload,
+  ) {
+    try {
+      const user = await this.resolveSocketUser(client);
+      const documentId = payload?.documentId?.trim();
+      if (!documentId) {
+        throw new WsException('documentId is required.');
+      }
+
+      if (!(await this.assertDocumentReadAccess(user.id, documentId))) {
+        throw new WsException('You do not have access to this document.');
+      }
+
+      const event = {
+        documentId,
+        user: {
+          id: user.id,
+          name: user.fullName,
+          email: user.email,
+        },
+        isTyping: payload?.isTyping === true,
+      };
+
+      client.to(this.roomName(documentId)).emit('document_message_typing', event);
+      return { ok: true };
+    } catch (error) {
+      const message =
+        error instanceof WsException
+          ? (error.getError() as string)
+          : error instanceof Error
+            ? error.message
+            : 'Failed to publish typing state.';
+      this.logger.warn(
+        `document_message_typing failure socket:${client.id} error:${message}`,
+      );
+      throw error;
+    }
   }
 
   @SubscribeMessage('cursor_update')

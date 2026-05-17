@@ -14,7 +14,10 @@ import type {
   PresignDocumentMediaResponse,
   DeleteDocumentCommentResponse,
   DocumentCommentsResponse,
+  CreateDocumentMessageResponse,
+  DeleteDocumentMessageResponse,
   DocumentDetailResponse,
+  DocumentMessagesResponse,
   DocumentListResponse,
   DocumentMembersResponse,
   DocumentStateResponse,
@@ -221,6 +224,36 @@ export async function deleteDocumentComment(
 ): Promise<DeleteDocumentCommentResponse> {
   const { data } = await apiClient.delete<DeleteDocumentCommentResponse>(
     `/documents/${documentId}/comments/${commentId}`,
+  );
+  return data;
+}
+
+export async function fetchDocumentMessages(
+  documentId: string,
+): Promise<DocumentMessagesResponse> {
+  const { data } = await apiClient.get<DocumentMessagesResponse>(
+    `/documents/${documentId}/messages`,
+  );
+  return data;
+}
+
+export async function createDocumentMessage(
+  documentId: string,
+  body: string,
+): Promise<CreateDocumentMessageResponse> {
+  const { data } = await apiClient.post<CreateDocumentMessageResponse>(
+    `/documents/${documentId}/messages`,
+    { body },
+  );
+  return data;
+}
+
+export async function deleteDocumentMessage(
+  documentId: string,
+  messageId: string,
+): Promise<DeleteDocumentMessageResponse> {
+  const { data } = await apiClient.delete<DeleteDocumentMessageResponse>(
+    `/documents/${documentId}/messages/${messageId}`,
   );
   return data;
 }
