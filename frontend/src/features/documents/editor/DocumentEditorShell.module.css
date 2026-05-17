@@ -255,6 +255,18 @@
   flex-wrap: nowrap;
 }
 
+.editorFloatingChrome {
+  position: absolute;
+  inset: 0;
+  z-index: 400;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.editorFloatingChrome > * {
+  pointer-events: auto;
+}
+
 .tableFloatingToolbar {
   position: absolute;
   z-index: 120;
@@ -355,6 +367,71 @@
 .textColorSwatchSelected {
   border: 2px solid #ffffff;
   box-shadow: 0 0 12px rgba(255, 255, 255, 0.18);
+}
+
+.highlightPopover {
+  background: #171923 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px !important;
+  padding: 10px 12px 12px !important;
+  width: fit-content;
+  max-width: min(196px, calc(100vw - 24px));
+}
+
+.highlightPopoverTitle {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6b6f85;
+  margin-bottom: 8px;
+}
+
+.highlightSwatchGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 32px);
+  gap: 6px;
+}
+
+.highlightSwatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  cursor: pointer;
+  padding: 0;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.highlightSwatch:hover {
+  transform: scale(1.05);
+}
+
+.highlightSwatchSelected {
+  border-color: rgba(255, 255, 255, 0.42);
+  outline: 2px solid #5b8af0;
+  outline-offset: 1px;
+  box-shadow: 0 0 0 1px rgba(91, 138, 240, 0.35);
+}
+
+.highlightSwatchClear {
+  background: #0f1118;
+  position: relative;
+}
+
+.highlightSwatchClear::after {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border-top: 2px solid rgba(239, 68, 68, 0.85);
+  transform: rotate(-45deg);
+}
+
+.toolbarHighlightPreviewEmpty {
+  background: #0f1118;
+  border: 1px dashed rgba(255, 255, 255, 0.22);
 }
 
 .toolbarClearFmt {

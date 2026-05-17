@@ -258,6 +258,312 @@ body,
   border-bottom-color: #cbd5e1;
 }
 
+/* File attachment card (FileAttachmentNode) */
+.flowdocs-file-attachment-node {
+  display: block;
+}
+
+.flowdocs-file-attachment-wrap {
+  margin: 0.85em 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.flowdocs-file-attachment-align-left {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+.flowdocs-file-attachment-align-center {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.flowdocs-file-attachment-align-right {
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.flowdocs-file-attachment-width-narrow {
+  width: min(58%, 420px);
+}
+
+.flowdocs-file-attachment-width-normal {
+  width: min(78%, 640px);
+}
+
+.flowdocs-file-attachment-width-wide {
+  width: min(92%, 820px);
+}
+
+.flowdocs-file-attachment-width-full {
+  width: 100%;
+}
+
+.flowdocs-file-attachment-wrap--selected .flowdocs-file-attachment {
+  border-color: rgba(91, 138, 240, 0.55);
+  box-shadow:
+    0 4px 16px rgba(79, 111, 216, 0.14),
+    inset 0 0 0 1px rgba(91, 138, 240, 0.25);
+}
+
+.flowdocs-file-attachment {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(145deg, #1a1d29 0%, #141722 100%);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.flowdocs-file-attachment--preview-open {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+.flowdocs-file-attachment:hover {
+  border-color: rgba(91, 138, 240, 0.35);
+  box-shadow: 0 4px 16px rgba(79, 111, 216, 0.12);
+}
+
+.flowdocs-file-attachment--invalid {
+  padding: 10px 12px;
+  border-style: dashed;
+  color: #9ca3af;
+}
+
+.flowdocs-file-attachment__icon {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 9px;
+  background: rgba(91, 138, 240, 0.14);
+  color: #93c5fd;
+}
+
+.flowdocs-file-attachment__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.flowdocs-file-attachment__name {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #e8eaf3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flowdocs-file-attachment__meta {
+  margin-top: 4px;
+}
+
+.flowdocs-file-attachment__badge {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.flowdocs-file-attachment__size {
+  color: #9ca3af !important;
+}
+
+.flowdocs-file-attachment__actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+/* Delete — always visible for editors (no hover gate); viewer has no delete control in markup */
+.flowdocs-file-attachment__delete {
+  opacity: 1;
+  visibility: visible;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.flowdocs-file-attachment:not(:hover) .flowdocs-file-attachment__delete,
+.flowdocs-file-attachment-wrap:not(:hover) .flowdocs-file-attachment__delete {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.flowdocs-file-attachment__delete.mantine-ActionIcon-root {
+  opacity: 1;
+  visibility: visible;
+  color: #fca5a5;
+  background-color: rgba(248, 113, 113, 0.16);
+  border: 1px solid rgba(248, 113, 113, 0.32);
+}
+
+.flowdocs-file-attachment__delete.mantine-ActionIcon-root:hover {
+  color: #fecaca;
+  background-color: rgba(248, 113, 113, 0.26);
+  border-color: rgba(248, 113, 113, 0.45);
+}
+
+.flowdocs-document-page .flowdocs-file-attachment__delete.mantine-ActionIcon-root {
+  color: #dc2626;
+  background-color: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.24);
+}
+
+.flowdocs-document-page .flowdocs-file-attachment__delete.mantine-ActionIcon-root:hover {
+  color: #b91c1c;
+  background-color: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.34);
+}
+
+.flowdocs-document-page .flowdocs-file-attachment {
+  border-color: rgba(15, 23, 42, 0.12);
+  background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
+}
+
+.flowdocs-document-page .flowdocs-file-attachment:hover {
+  border-color: rgba(79, 111, 216, 0.35);
+  box-shadow: 0 4px 14px rgba(79, 111, 216, 0.1);
+}
+
+.flowdocs-document-page .flowdocs-file-attachment__icon {
+  background: rgba(79, 111, 216, 0.1);
+  color: #4f6fd8;
+}
+
+.flowdocs-document-page .flowdocs-file-attachment__name {
+  color: #111827;
+}
+
+.flowdocs-document-page .flowdocs-file-attachment__size {
+  color: #64748b !important;
+}
+
+.flowdocs-file-attachment-preview {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  overflow: hidden;
+  background: #0f1118;
+}
+
+.flowdocs-file-attachment-preview__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(15, 17, 24, 0.92);
+}
+
+.flowdocs-file-attachment-select-handle {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 4px 10px;
+  border: 1px solid rgba(91, 138, 240, 0.45);
+  border-radius: 6px;
+  background: rgba(91, 138, 240, 0.12);
+  color: #93c5fd;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.flowdocs-file-attachment-select-handle:hover {
+  background: rgba(91, 138, 240, 0.22);
+  border-color: rgba(91, 138, 240, 0.65);
+}
+
+.flowdocs-document-page .flowdocs-file-attachment-select-handle {
+  border-color: rgba(79, 111, 216, 0.35);
+  background: rgba(79, 111, 216, 0.08);
+  color: #4f6fd8;
+}
+
+.flowdocs-document-page .flowdocs-file-attachment-select-handle:hover {
+  background: rgba(79, 111, 216, 0.14);
+}
+
+.flowdocs-file-attachment-preview__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flowdocs-file-attachment-preview__frame {
+  position: relative;
+  height: min(520px, 62vh);
+  min-height: 280px;
+  background: #111827;
+}
+
+.flowdocs-file-attachment-preview__iframe,
+.flowdocs-file-attachment-preview__embed {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #ffffff;
+}
+
+.flowdocs-file-attachment-preview__error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 16px;
+  text-align: center;
+}
+
+.flowdocs-document-page .flowdocs-file-attachment-preview {
+  border-color: rgba(15, 23, 42, 0.12);
+  background: #f8fafc;
+}
+
+.flowdocs-document-page .flowdocs-file-attachment-preview__header {
+  background: #f1f5f9;
+  border-bottom-color: rgba(15, 23, 42, 0.08);
+}
+
+.flowdocs-document-page .flowdocs-file-attachment-preview__frame {
+  background: #e2e8f0;
+}
+
+.flowdocs-document-page .flowdocs-file-attachment--preview-open {
+  border-bottom-color: rgba(15, 23, 42, 0.08);
+}
+
+@media (max-width: 640px) {
+  .flowdocs-file-attachment {
+    flex-wrap: wrap;
+  }
+
+  .flowdocs-file-attachment__actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .flowdocs-file-attachment-preview__frame {
+    height: min(420px, 55vh);
+    min-height: 220px;
+  }
+}
+
 /* Multi-line code block (@lexical/code CodeNode) */
 .flowdocs-code-block {
   display: block;

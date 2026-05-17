@@ -15,6 +15,6 @@ export class ConfirmDocumentMediaDto {
 
   @IsInt()
   @Min(1)
-  @Max(5 * 1024 * 1024)
+  @Max(20 * 1024 * 1024)
   size!: number;
 }

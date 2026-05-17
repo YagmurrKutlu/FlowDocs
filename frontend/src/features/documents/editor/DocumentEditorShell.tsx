@@ -35,6 +35,7 @@ import {
   IconLetterA,
   IconList,
   IconListNumbers,
+  IconPaperclip,
   IconPhotoPlus,
   IconStrikethrough,
   IconUnderline,
@@ -94,6 +95,9 @@ import { CommentSelectionCapturePlugin } from './CommentSelectionCapturePlugin';
 import { FlowDocsLinkPlugin, LinkClickPlugin } from './FlowDocsLinkPlugin';
 import { FlowDocsTablePlugin } from './FlowDocsTablePlugin';
 import { FlowDocsTableNode } from './nodes/FlowDocsTableNode';
+import { FileAttachmentFloatingToolbar } from './FileAttachmentFloatingToolbar';
+import { FileAttachmentSelectionPlugin } from './FileAttachmentSelectionPlugin';
+import { persistFileAttachmentSelection } from './fileAttachmentSelection';
 import { TableFloatingToolbar } from './TableFloatingToolbar';
 import { ToolbarTableButton } from './ToolbarTableButton';
 import {
@@ -106,6 +110,17 @@ import { ToolbarLinkButton } from './ToolbarLinkButton';
 import { DocumentEditorCapabilitiesProvider } from './DocumentEditorCapabilitiesContext';
 import { ImageClipboardPlugin } from './ImageClipboardPlugin';
 import { ImageDragDropPlugin } from './ImageDragDropPlugin';
+import {
+  DOCUMENT_FILE_INPUT_ACCEPT,
+  logFileAttachmentInserted,
+  logSerializedContainsFileAttachment,
+  sanitizeFileDisplayName,
+  validateDocumentUploadFile,
+} from './fileAttachmentUtils';
+import {
+  $createFileAttachmentNode,
+  FileAttachmentNode,
+} from './nodes/FileAttachmentNode';
 import { $createImageNode, $selectImageNodeIfPresent, ImageNode } from './nodes/ImageNode';
 import { getUserColor } from './user-colors';
 import { presenceDotColor, presenceGradientCss } from './documentPresenceGradients';
@@ -139,6 +154,18 @@ import {
   TEXT_COLOR_PALETTE,
   writeStoredActiveTextColor,
 } from './textColorFormatting';
+import {
+  applyHighlightInEditor,
+  clearHighlightInEditor,
+  HIGHLIGHT_PALETTE,
+  logRestoredContainsHighlight,
+  logSerializedContainsHighlight,
+  normalizeHighlightColor,
+  readStoredActiveHighlightColor,
+  readHighlightFromSelection,
+  selectionIsInsideCodeBlock,
+  writeStoredActiveHighlightColor,
+} from './highlightFormatting';
 
 function initialsFromName(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -195,6 +222,7 @@ const EDITOR_THEME = {
   },
   code: 'flowdocs-code-block',
   link: 'flowdocs-link',
+  fileAttachment: 'flowdocs-file-attachment-node',
   table: 'flowdocs-table',
   tableScrollableWrapper: 'flowdocs-table-scroll',
   tableCell: 'flowdocs-table-cell',
@@ -901,6 +929,7 @@ function YjsLexicalBridgePlugin({
       logRestoredContainsTable(editor);
       devRestoreDebugLog('restore completed', metrics);
       logRestoredContainsCode(editor);
+      logRestoredContainsHighlight(editor);
       restoreCompleteRef.current = true;
     };
 
@@ -1010,6 +1039,8 @@ function YjsLexicalBridgePlugin({
       logSerializedContainsCode(nextSerialized);
       logSerializedContainsTable(nextSerialized);
       logSerializedTableLayout(nextSerialized);
+      logSerializedContainsHighlight(nextSerialized);
+      logSerializedContainsFileAttachment(nextSerialized);
       devRealtimeDebugLog('yjs update produced', {
         textLen: nextText.length,
         serializedLen: nextSerialized.length,
@@ -1056,33 +1087,6 @@ function ToolbarIconButton({
         {children}
       </UnstyledButton>
     </Tooltip>
-  );
-}
-
-function ToolbarColorPreviewButton({
-  label,
-  disabled,
-  uiOnly,
-  previewColor,
-  icon,
-}: {
-  label: string;
-  disabled?: boolean;
-  uiOnly?: boolean;
-  previewColor: string;
-  icon: ReactNode;
-}) {
-  return (
-    <ToolbarIconButton label={label} disabled={disabled} uiOnly={uiOnly}>
-      <span className={editorShell.toolbarColorBtnInner}>
-        {icon}
-        <span
-          className={editorShell.toolbarColorPreview}
-          style={{ backgroundColor: previewColor }}
-          aria-hidden
-        />
-      </span>
-    </ToolbarIconButton>
   );
 }
 
@@ -1167,17 +1171,166 @@ function ToolbarTextColorButton({
   );
 }
 
+function ToolbarHighlightButton({
+  disabled,
+  activeHighlightColor,
+  onActiveHighlightColorChange,
+  editor,
+  lastSelectionRef,
+}: {
+  disabled?: boolean;
+  activeHighlightColor: string;
+  onActiveHighlightColorChange: (color: string) => void;
+  editor: LexicalEditor;
+  lastSelectionRef: React.MutableRefObject<RangeSelection | null>;
+}) {
+  const [opened, setOpened] = useState(false);
+  const [previewCleared, setPreviewCleared] = useState(false);
+
+  const notifySelectTextFirst = () => {
+    notifications.show({
+      title: 'Vurgu',
+      message: 'Önce metin seçin',
+      color: 'yellow',
+    });
+  };
+
+  const resolveHighlightTarget = (): 'ok' | 'empty' | 'code-block' => {
+    let result: 'empty' | 'code-block' | 'ok' = 'empty';
+    editor.getEditorState().read(() => {
+      let selection = $getSelection();
+      if (!$isRangeSelection(selection) && lastSelectionRef.current) {
+        selection = lastSelectionRef.current;
+      }
+      if (!$isRangeSelection(selection) || selection.isCollapsed()) return;
+      if (selectionIsInsideCodeBlock(selection)) {
+        result = 'code-block';
+        return;
+      }
+      result = 'ok';
+    });
+    return result;
+  };
+
+  const handlePick = (color: string | null) => {
+    editor.focus();
+
+    const target = resolveHighlightTarget();
+    if (target === 'code-block') return;
+
+    if (color === null) {
+      const cleared = clearHighlightInEditor(editor, lastSelectionRef.current);
+      if (!cleared) {
+        if (target !== 'ok') notifySelectTextFirst();
+        return;
+      }
+      setPreviewCleared(true);
+      setOpened(false);
+      return;
+    }
+
+    const normalized = normalizeHighlightColor(color);
+    onActiveHighlightColorChange(normalized);
+    setPreviewCleared(false);
+
+    if (target !== 'ok') {
+      notifySelectTextFirst();
+      return;
+    }
+
+    const applied = applyHighlightInEditor(editor, normalized, lastSelectionRef.current);
+    if (!applied) {
+      notifySelectTextFirst();
+      return;
+    }
+
+    setOpened(false);
+  };
+
+  const previewStyle = previewCleared
+    ? undefined
+    : { backgroundColor: activeHighlightColor };
+
+  return (
+    <Popover
+      opened={opened}
+      onChange={setOpened}
+      position="bottom"
+      withArrow
+      shadow="md"
+      withinPortal
+      zIndex={500}
+      disabled={disabled}
+    >
+      <Popover.Target>
+        <Tooltip label="Vurgula" withArrow position="bottom" openDelay={350}>
+          <UnstyledButton
+            type="button"
+            className={editorShell.toolbarIconBtn}
+            disabled={disabled}
+            aria-label="Vurgula"
+            aria-expanded={opened}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => !disabled && setOpened((o) => !o)}
+          >
+            <span className={editorShell.toolbarColorBtnInner}>
+              <IconHighlight size={18} stroke={2} />
+              <span
+                className={`${editorShell.toolbarColorPreview}${previewCleared ? ` ${editorShell.toolbarHighlightPreviewEmpty}` : ''}`}
+                style={previewStyle}
+                aria-hidden
+              />
+            </span>
+          </UnstyledButton>
+        </Tooltip>
+      </Popover.Target>
+      <Popover.Dropdown className={editorShell.highlightPopover}>
+        <Text className={editorShell.highlightPopoverTitle}>Metin vurgusu</Text>
+        <div className={editorShell.highlightSwatchGrid} role="listbox" aria-label="Metin vurgusu">
+          {HIGHLIGHT_PALETTE.map((entry) => {
+            const isClear = entry.value === null;
+            const selected =
+              !isClear &&
+              !previewCleared &&
+              normalizeHighlightColor(activeHighlightColor) === normalizeHighlightColor(entry.value);
+            return (
+              <button
+                key={entry.id}
+                type="button"
+                role="option"
+                aria-selected={isClear ? previewCleared : selected}
+                aria-label={entry.label}
+                title={entry.label}
+                className={`${editorShell.highlightSwatch}${isClear ? ` ${editorShell.highlightSwatchClear}` : ''}${selected ? ` ${editorShell.highlightSwatchSelected}` : ''}`}
+                style={entry.value ? { backgroundColor: entry.value } : undefined}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => handlePick(entry.value)}
+              />
+            );
+          })}
+        </div>
+      </Popover.Dropdown>
+    </Popover>
+  );
+}
+
 interface EditorToolbarPluginProps {
   disabled: boolean;
   isUploadingImage: boolean;
+  isUploadingDocument: boolean;
   onUploadImage: (file: File) => Promise<{ url: string; altText: string } | null>;
+  onUploadDocument: (
+    file: File,
+  ) => Promise<{ url: string; fileName: string; mimeType: string; size: number } | null>;
   trailing?: ReactNode;
 }
 
 function EditorToolbarPlugin({
   disabled,
   isUploadingImage,
+  isUploadingDocument,
   onUploadImage,
+  onUploadDocument,
   trailing,
 }: EditorToolbarPluginProps) {
   const [editor] = useLexicalComposerContext();
@@ -1189,15 +1342,26 @@ function EditorToolbarPlugin({
   const [isLink, setIsLink] = useState(false);
   const [blockType, setBlockType] = useState<ToolbarBlockType>('paragraph');
   const [activeTextColor, setActiveTextColor] = useState(() => readStoredActiveTextColor());
+  const [activeHighlightColor, setActiveHighlightColor] = useState(() =>
+    readStoredActiveHighlightColor(),
+  );
   const activeTextColorRef = useRef(activeTextColor);
   const lastSelectionRef = useRef<RangeSelection | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const documentFileInputRef = useRef<HTMLInputElement | null>(null);
+  const isUploadingMedia = isUploadingImage || isUploadingDocument;
 
   const setActiveTextColorBoth = useCallback((color: string) => {
     const normalized = normalizeTextColor(color);
     activeTextColorRef.current = normalized;
     setActiveTextColor(normalized);
     writeStoredActiveTextColor(normalized);
+  }, []);
+
+  const setActiveHighlightColorBoth = useCallback((color: string) => {
+    const normalized = normalizeHighlightColor(color);
+    setActiveHighlightColor(normalized);
+    writeStoredActiveHighlightColor(normalized);
   }, []);
 
   useEffect(() => {
@@ -1222,6 +1386,13 @@ function EditorToolbarPlugin({
             insertionColorDiffersFromActive(selection, activeTextColorRef.current)
           ) {
             shouldSyncInsertionColor = true;
+          }
+
+          if (!disabled && !selection.isCollapsed()) {
+            const highlight = readHighlightFromSelection(selection);
+            if (highlight) {
+              setActiveHighlightColor(normalizeHighlightColor(highlight));
+            }
           }
 
           const anchorNode = selection.anchor.getNode();
@@ -1390,6 +1561,49 @@ function EditorToolbarPlugin({
     fileInputRef.current?.click();
   };
 
+  const handleDocumentUploadButton = () => {
+    documentFileInputRef.current?.click();
+  };
+
+  const insertFileAttachment = (
+    url: string,
+    fileName: string,
+    mimeType: string,
+    size: number,
+  ) => {
+    const trimmedUrl = typeof url === 'string' ? url.trim() : '';
+    if (!trimmedUrl) {
+      notifications.show({
+        title: 'Dosya eklenemedi',
+        message: 'Sunucu dosya adresi döndürmedi.',
+        color: 'red',
+      });
+      return;
+    }
+
+    editor.focus();
+    let attachmentKey: string | null = null;
+    editor.update(() => {
+      const attachmentNode = $createFileAttachmentNode(
+        trimmedUrl,
+        fileName,
+        mimeType,
+        size,
+      );
+      attachmentKey = attachmentNode.getKey();
+      const selection = $getSelection();
+      if ($isRangeSelection(selection)) {
+        selection.insertNodes([attachmentNode]);
+      } else {
+        $getRoot().append(attachmentNode);
+      }
+      logFileAttachmentInserted(fileName, mimeType);
+    });
+    if (attachmentKey) {
+      persistFileAttachmentSelection(editor, attachmentKey);
+    }
+  };
+
   const handleImageFileSelected = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
     if (!file) return;
@@ -1400,6 +1614,31 @@ function EditorToolbarPlugin({
     notifications.show({
       title: 'Image uploaded',
       message: `${file.name} inserted into document.`,
+      color: 'teal',
+    });
+  };
+
+  const handleDocumentFileSelected = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    if (!file) return;
+    event.currentTarget.value = '';
+
+    const validation = validateDocumentUploadFile(file);
+    if (!validation.ok) {
+      notifications.show({
+        title: 'Geçersiz dosya',
+        message: validation.message,
+        color: 'red',
+      });
+      return;
+    }
+
+    const uploaded = await onUploadDocument(file);
+    if (!uploaded) return;
+    insertFileAttachment(uploaded.url, uploaded.fileName, uploaded.mimeType, uploaded.size);
+    notifications.show({
+      title: 'Doküman yüklendi',
+      message: `${sanitizeFileDisplayName(uploaded.fileName)} eklendi.`,
       color: 'teal',
     });
   };
@@ -1417,6 +1656,15 @@ function EditorToolbarPlugin({
           style={{ display: 'none' }}
           onChange={(e) => {
             void handleImageFileSelected(e);
+          }}
+        />
+        <input
+          ref={documentFileInputRef}
+          type="file"
+          accept={DOCUMENT_FILE_INPUT_ACCEPT}
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            void handleDocumentFileSelected(e);
           }}
         />
         <Group className={editorShell.toolbarScroll} gap={8} wrap="nowrap" align="center">
@@ -1538,12 +1786,12 @@ function EditorToolbarPlugin({
               editor={editor}
               lastSelectionRef={lastSelectionRef}
             />
-            <ToolbarColorPreviewButton
-              label="Vurgula"
+            <ToolbarHighlightButton
               disabled={disabled}
-              uiOnly
-              previewColor="#f0c040"
-              icon={<IconHighlight size={18} stroke={2} />}
+              activeHighlightColor={activeHighlightColor}
+              onActiveHighlightColorChange={setActiveHighlightColorBoth}
+              editor={editor}
+              lastSelectionRef={lastSelectionRef}
             />
           </Group>
 
@@ -1570,11 +1818,18 @@ function EditorToolbarPlugin({
               </Text>
             </ToolbarIconButton>
             <ToolbarIconButton
-              label={isUploadingImage ? 'Yükleniyor…' : 'Görsel yükle'}
-              disabled={disabled || isUploadingImage}
+              label={isUploadingMedia ? 'Yükleniyor…' : 'Görsel yükle'}
+              disabled={disabled || isUploadingMedia}
               onClick={handleUploadButton}
             >
               <IconPhotoPlus size={18} stroke={2} />
+            </ToolbarIconButton>
+            <ToolbarIconButton
+              label={isUploadingMedia ? 'Yükleniyor…' : 'Doküman yükle'}
+              disabled={disabled || isUploadingMedia}
+              onClick={handleDocumentUploadButton}
+            >
+              <IconPaperclip size={18} stroke={2} />
             </ToolbarIconButton>
           </Group>
         </Group>
@@ -1627,6 +1882,7 @@ export function DocumentEditorShell({
   >([]);
   const [overlayRevision, setOverlayRevision] = useState(0);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isUploadingDocument, setIsUploadingDocument] = useState(false);
 
   const presenceLiveSourceRef = useRef({
     activeUsers: [] as ActiveUser[],
@@ -1672,6 +1928,7 @@ export function DocumentEditorShell({
         TableRowNode,
         TableCellNode,
         ImageNode,
+        FileAttachmentNode,
       ],
       onError(error: Error) {
         throw error;
@@ -1880,6 +2137,89 @@ export function DocumentEditorShell({
         return null;
       } finally {
         setIsUploadingImage(false);
+      }
+    },
+    [canEdit, documentId],
+  );
+
+  const handleUploadDocument = useCallback(
+    async (
+      file: File,
+    ): Promise<{ url: string; fileName: string; mimeType: string; size: number } | null> => {
+      if (!canEdit) {
+        notifications.show({
+          title: 'İzin yok',
+          message: 'Salt okunur modda dosya yükleyemezsiniz.',
+          color: 'orange',
+        });
+        return null;
+      }
+
+      const validation = validateDocumentUploadFile(file);
+      if (!validation.ok) {
+        notifications.show({
+          title: 'Geçersiz dosya',
+          message: validation.message,
+          color: 'red',
+        });
+        return null;
+      }
+
+      setIsUploadingDocument(true);
+      try {
+        const safeName = sanitizeFileDisplayName(file.name);
+        const presign = await createDocumentMediaPresign(documentId, {
+          fileName: safeName,
+          contentType: file.type,
+          size: file.size,
+        });
+
+        const putResponse = await fetch(presign.uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': file.type },
+          body: file,
+        });
+        if (!putResponse.ok) {
+          throw new Error(`Upload failed with status ${putResponse.status}`);
+        }
+
+        const confirm = await confirmDocumentMediaUpload(documentId, {
+          objectKey: presign.objectKey,
+          fileName: safeName,
+          contentType: file.type,
+          size: file.size,
+        });
+
+        const fileUrl = resolveConfirmMediaUrl(confirm);
+        if (!fileUrl) {
+          notifications.show({
+            title: 'Yükleme tamamlanamadı',
+            message: 'Sunucu dosya adresi döndürmedi.',
+            color: 'red',
+          });
+          return null;
+        }
+
+        if (import.meta.env.DEV) {
+          // eslint-disable-next-line no-console -- dev-only media pipeline debug
+          console.log('[media] resolved document url', fileUrl);
+        }
+
+        return {
+          url: fileUrl,
+          fileName: safeName,
+          mimeType: file.type,
+          size: file.size,
+        };
+      } catch (err) {
+        notifications.show({
+          title: 'Doküman yüklenemedi',
+          message: getApiErrorMessage(err),
+          color: 'red',
+        });
+        return null;
+      } finally {
+        setIsUploadingDocument(false);
       }
     },
     [canEdit, documentId],
@@ -2494,7 +2834,9 @@ export function DocumentEditorShell({
               <EditorToolbarPlugin
                 disabled={!canEdit}
                 isUploadingImage={isUploadingImage}
+                isUploadingDocument={isUploadingDocument}
                 onUploadImage={handleUploadImage}
+                onUploadDocument={handleUploadDocument}
                 trailing={syncToolbarTrailing}
               />
             </div>
@@ -2508,7 +2850,6 @@ export function DocumentEditorShell({
               <div className={editorShell.centerColumn}>
                 <Box className={editorShell.centerCanvasStack}>
                   <div ref={editorContainerRef} className={editorShell.canvasWorkbench}>
-                    <TableFloatingToolbar anchorRef={editorContainerRef} />
                     <div className={`${editorShell.documentPage} flowdocs-document-page`}>
                       <div className={editorShell.editorBlock}>
                         <RichTextPlugin
@@ -2534,6 +2875,10 @@ export function DocumentEditorShell({
                         <LinkClickPlugin />
                         <FlowDocsTablePlugin />
                       </div>
+                    </div>
+                    <div className={editorShell.editorFloatingChrome}>
+                      <TableFloatingToolbar anchorRef={editorContainerRef} />
+                      <FileAttachmentFloatingToolbar anchorRef={editorContainerRef} />
                     </div>
                   </div>
                   <Box className={editorShell.cursorOverlayLayer}>
@@ -2711,6 +3056,7 @@ export function DocumentEditorShell({
             <CommentSelectionCapturePlugin documentId={documentId} />
             <ImageClipboardPlugin />
             <ImageDragDropPlugin />
+            <FileAttachmentSelectionPlugin />
 
             <footer className={editorShell.statusBar}>
               <Text component="span">Satır — · Sütun —</Text>

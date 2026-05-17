@@ -18,10 +18,18 @@ import { PresignDocumentMediaDto } from './dto/presign-document-media.dto';
 export class MediaService {
   private readonly minioClient: MinioClient;
   private readonly maxImageSizeBytes = 5 * 1024 * 1024;
-  private readonly allowedMimeTypes = new Set([
+  private readonly maxDocumentSizeBytes = 20 * 1024 * 1024;
+  private readonly imageMimeTypes = new Set([
     'image/png',
     'image/jpeg',
     'image/webp',
+  ]);
+  private readonly documentMimeTypes = new Set([
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/msword',
+    'text/plain',
+    'text/csv',
   ]);
 
   constructor(
@@ -160,11 +168,20 @@ export class MediaService {
   }
 
   private validateMediaInput(contentType: string, size: number) {
-    if (!this.allowedMimeTypes.has(contentType)) {
-      throw new BadRequestException('Only PNG, JPEG, and WEBP images are allowed.');
+    const isImage = this.imageMimeTypes.has(contentType);
+    const isDocument = this.documentMimeTypes.has(contentType);
+    if (!isImage && !isDocument) {
+      throw new BadRequestException(
+        'Desteklenmeyen dosya türü. İzin verilen: PNG, JPEG, WEBP, PDF, DOC, DOCX, TXT, CSV.',
+      );
     }
-    if (size <= 0 || size > this.maxImageSizeBytes) {
-      throw new BadRequestException('Maximum allowed file size is 5MB.');
+    const maxSize = isImage ? this.maxImageSizeBytes : this.maxDocumentSizeBytes;
+    if (size <= 0 || size > maxSize) {
+      throw new BadRequestException(
+        isImage
+          ? 'Maximum allowed file size is 5MB.'
+          : 'Maximum allowed document size is 20MB.',
+      );
     }
   }
 
@@ -173,6 +190,11 @@ export class MediaService {
       'image/png': '.png',
       'image/jpeg': '.jpg',
       'image/webp': '.webp',
+      'application/pdf': '.pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+      'application/msword': '.doc',
+      'text/plain': '.txt',
+      'text/csv': '.csv',
     };
 
     const guessed = byType[contentType] ?? '';
@@ -181,7 +203,18 @@ export class MediaService {
     const idx = trimmed.lastIndexOf('.');
     if (idx <= 0 || idx === trimmed.length - 1) return guessed;
     const ext = trimmed.slice(idx).toLowerCase();
-    if (ext === '.png' || ext === '.jpg' || ext === '.jpeg' || ext === '.webp') {
+    const allowed = new Set([
+      '.png',
+      '.jpg',
+      '.jpeg',
+      '.webp',
+      '.pdf',
+      '.doc',
+      '.docx',
+      '.txt',
+      '.csv',
+    ]);
+    if (allowed.has(ext)) {
       if (contentType === 'image/jpeg' && ext === '.jpeg') return '.jpg';
       return ext;
     }
