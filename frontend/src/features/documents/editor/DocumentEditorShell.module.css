@@ -183,6 +183,137 @@
   margin-bottom: 8px;
 }
 
+.linkPopover {
+  background: #171923 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px !important;
+  padding: 10px 12px 12px !important;
+  width: min(320px, calc(100vw - 24px));
+}
+
+.linkPopoverTitle {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6b6f85;
+  margin-bottom: 8px;
+}
+
+.linkPopoverInput {
+  background: #0f1118 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #e2e4f0 !important;
+  font-size: 13px !important;
+}
+
+.linkPopoverInput:focus {
+  border-color: rgba(91, 138, 240, 0.55) !important;
+}
+
+.linkPopoverActions {
+  flex-wrap: nowrap;
+}
+
+.linkPopoverUrl {
+  display: block;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #c5c9dc;
+  word-break: break-all;
+  max-width: 280px;
+}
+
+.tablePopover {
+  background: #171923 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px !important;
+  padding: 10px 12px 12px !important;
+  width: min(280px, calc(100vw - 24px));
+}
+
+.tablePopoverTitle {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6b6f85;
+  margin-bottom: 10px;
+}
+
+.tablePopoverInput {
+  background: #0f1118 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #e2e4f0 !important;
+}
+
+.tablePopoverInput:focus {
+  border-color: rgba(91, 138, 240, 0.55) !important;
+}
+
+.tablePopoverActions {
+  flex-wrap: nowrap;
+}
+
+.tableFloatingToolbar {
+  position: absolute;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: #ffffff;
+  box-shadow:
+    0 4px 14px rgba(15, 23, 42, 0.1),
+    0 1px 3px rgba(15, 23, 42, 0.06);
+  pointer-events: auto;
+}
+
+.tableFloatingBtn,
+.tableFloatingWidthBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: 6px;
+  color: #374151;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.tableFloatingBtn:hover:not(:disabled),
+.tableFloatingWidthBtn:hover:not(:disabled) {
+  background: rgba(79, 111, 216, 0.1);
+  color: #2f4499;
+}
+
+.tableFloatingBtn:disabled,
+.tableFloatingWidthBtn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.tableFloatingBtn[data-active],
+.tableFloatingWidthBtn[data-active] {
+  background: rgba(79, 111, 216, 0.16);
+  color: #2f4499;
+}
+
+.tableFloatingDivider {
+  width: 1px;
+  height: 20px;
+  background: rgba(15, 23, 42, 0.12);
+  flex-shrink: 0;
+}
+
 .textColorGrid {
   display: grid;
   grid-template-columns: repeat(6, 30px);
@@ -365,6 +496,7 @@
 }
 
 .canvasWorkbench {
+  position: relative;
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;

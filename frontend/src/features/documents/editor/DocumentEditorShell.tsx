@@ -33,16 +33,16 @@ import {
   IconHighlight,
   IconItalic,
   IconLetterA,
-  IconLink,
   IconList,
   IconListNumbers,
   IconPhotoPlus,
   IconStrikethrough,
-  IconTable,
   IconUnderline,
 } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { $createCodeNode, $isCodeNode, CodeHighlightNode, CodeNode } from '@lexical/code';
+import { LinkNode } from '@lexical/link';
+import { TableCellNode, TableRowNode } from '@lexical/table';
 import { $createHeadingNode, $isHeadingNode, HeadingNode } from '@lexical/rich-text';
 import {
   $isListNode,
@@ -91,6 +91,18 @@ import {
 import { documentsQueryKeys } from '../hooks/useDocumentsQueries';
 import { resolveConfirmMediaUrl } from '../utils/confirm-media-url';
 import { CommentSelectionCapturePlugin } from './CommentSelectionCapturePlugin';
+import { FlowDocsLinkPlugin, LinkClickPlugin } from './FlowDocsLinkPlugin';
+import { FlowDocsTablePlugin } from './FlowDocsTablePlugin';
+import { FlowDocsTableNode } from './nodes/FlowDocsTableNode';
+import { TableFloatingToolbar } from './TableFloatingToolbar';
+import { ToolbarTableButton } from './ToolbarTableButton';
+import {
+  logRestoredContainsTable,
+  logSerializedContainsTable,
+  logSerializedTableLayout,
+} from './tableUtils';
+import { selectionIsInsideLink } from './linkFormatting';
+import { ToolbarLinkButton } from './ToolbarLinkButton';
 import { DocumentEditorCapabilitiesProvider } from './DocumentEditorCapabilitiesContext';
 import { ImageClipboardPlugin } from './ImageClipboardPlugin';
 import { ImageDragDropPlugin } from './ImageDragDropPlugin';
@@ -182,6 +194,12 @@ const EDITOR_THEME = {
     listitem: 'flowdocs-list-item',
   },
   code: 'flowdocs-code-block',
+  link: 'flowdocs-link',
+  table: 'flowdocs-table',
+  tableScrollableWrapper: 'flowdocs-table-scroll',
+  tableCell: 'flowdocs-table-cell',
+  tableCellSelected: 'flowdocs-table-cell-selected',
+  tableRow: 'flowdocs-table-row',
 };
 
 interface ActiveUser {
@@ -880,6 +898,7 @@ function YjsLexicalBridgePlugin({
       }
 
       logRestoredCodeBlockTextLength(editor);
+      logRestoredContainsTable(editor);
       devRestoreDebugLog('restore completed', metrics);
       logRestoredContainsCode(editor);
       restoreCompleteRef.current = true;
@@ -989,6 +1008,8 @@ function YjsLexicalBridgePlugin({
       }, EDITOR_ORIGIN);
       lastAppliedSerializedRef.current = nextSerialized;
       logSerializedContainsCode(nextSerialized);
+      logSerializedContainsTable(nextSerialized);
+      logSerializedTableLayout(nextSerialized);
       devRealtimeDebugLog('yjs update produced', {
         textLen: nextText.length,
         serializedLen: nextSerialized.length,
@@ -1165,6 +1186,7 @@ function EditorToolbarPlugin({
   const [isUnderline, setIsUnderline] = useState(false);
   const [isStrikethrough, setIsStrikethrough] = useState(false);
   const [isCode, setIsCode] = useState(false);
+  const [isLink, setIsLink] = useState(false);
   const [blockType, setBlockType] = useState<ToolbarBlockType>('paragraph');
   const [activeTextColor, setActiveTextColor] = useState(() => readStoredActiveTextColor());
   const activeTextColorRef = useRef(activeTextColor);
@@ -1192,6 +1214,7 @@ function EditorToolbarPlugin({
           setIsUnderline(selection.hasFormat('underline'));
           setIsStrikethrough(selection.hasFormat('strikethrough'));
           setIsCode(selection.hasFormat('code'));
+          setIsLink(selectionIsInsideLink());
 
           if (
             !disabled &&
@@ -1475,12 +1498,13 @@ function EditorToolbarPlugin({
             >
               <IconCodeDots size={18} stroke={2} />
             </ToolbarIconButton>
-            <ToolbarIconButton label="Bağlantı" disabled={disabled} uiOnly>
-              <IconLink size={18} stroke={2} />
-            </ToolbarIconButton>
-            <ToolbarIconButton label="Tablo" disabled={disabled} uiOnly>
-              <IconTable size={18} stroke={2} />
-            </ToolbarIconButton>
+            <ToolbarLinkButton
+              disabled={disabled}
+              active={isLink}
+              editor={editor}
+              lastSelectionRef={lastSelectionRef}
+            />
+            <ToolbarTableButton disabled={disabled} />
           </Group>
 
           <ToolbarDivider />
@@ -1637,7 +1661,18 @@ export function DocumentEditorShell({
       namespace: `flowdocs-document-${documentId}`,
       editable: canEdit,
       theme: EDITOR_THEME,
-      nodes: [HeadingNode, ListNode, ListItemNode, CodeNode, CodeHighlightNode, ImageNode],
+      nodes: [
+        HeadingNode,
+        ListNode,
+        ListItemNode,
+        CodeNode,
+        CodeHighlightNode,
+        LinkNode,
+        FlowDocsTableNode,
+        TableRowNode,
+        TableCellNode,
+        ImageNode,
+      ],
       onError(error: Error) {
         throw error;
       },
@@ -2473,6 +2508,7 @@ export function DocumentEditorShell({
               <div className={editorShell.centerColumn}>
                 <Box className={editorShell.centerCanvasStack}>
                   <div ref={editorContainerRef} className={editorShell.canvasWorkbench}>
+                    <TableFloatingToolbar anchorRef={editorContainerRef} />
                     <div className={`${editorShell.documentPage} flowdocs-document-page`}>
                       <div className={editorShell.editorBlock}>
                         <RichTextPlugin
@@ -2494,6 +2530,9 @@ export function DocumentEditorShell({
                           ErrorBoundary={LexicalErrorBoundary}
                         />
                         <ListPlugin />
+                        <FlowDocsLinkPlugin />
+                        <LinkClickPlugin />
+                        <FlowDocsTablePlugin />
                       </div>
                     </div>
                   </div>
