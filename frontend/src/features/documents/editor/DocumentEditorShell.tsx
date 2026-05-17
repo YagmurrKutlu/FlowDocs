@@ -1897,6 +1897,9 @@ export function DocumentEditorShell({
   const socketRef = useRef<Socket | null>(null);
   const cursorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorContainerRef = useRef<HTMLDivElement | null>(null);
+  const stickyScrollSentinelRef = useRef<HTMLDivElement | null>(null);
+  const stickyScrollStateRef = useRef({ page: false, canvas: false });
+  const [stickyChromeScrolled, setStickyChromeScrolled] = useState(false);
   const initialContentRef = useRef<unknown>(initialContent);
   const lastComposerKeyRef = useRef<string | null>(null);
   const composerKey = `${documentId}-${canEdit ? 'edit' : 'view'}`;
@@ -1914,6 +1917,42 @@ export function DocumentEditorShell({
     });
     lastComposerKeyRef.current = composerKey;
   }, [hydrated, composerKey]);
+
+  const syncStickyChromeScrolled = useCallback(() => {
+    const { page, canvas } = stickyScrollStateRef.current;
+    setStickyChromeScrolled(page || canvas);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const sentinel = stickyScrollSentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        stickyScrollStateRef.current.page = !entry.isIntersecting;
+        syncStickyChromeScrolled();
+      },
+      { threshold: [0, 1] },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hydrated, syncStickyChromeScrolled]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const canvas = editorContainerRef.current;
+    if (!canvas) return;
+
+    const onScroll = () => {
+      stickyScrollStateRef.current.canvas = canvas.scrollTop > 6;
+      syncStickyChromeScrolled();
+    };
+
+    onScroll();
+    canvas.addEventListener('scroll', onScroll, { passive: true });
+    return () => canvas.removeEventListener('scroll', onScroll);
+  }, [hydrated, restorePayload, syncStickyChromeScrolled]);
 
   const lexicalInitialConfig = useMemo<InitialConfigType>(
     () => ({
@@ -2759,7 +2798,19 @@ export function DocumentEditorShell({
       >
         <DocumentEditorCapabilitiesProvider canEdit={canEdit}>
           <Box className={editorShell.workspaceInner}>
-            <Box className={editorShell.docChromeBar}>
+            <div
+              ref={stickyScrollSentinelRef}
+              className={editorShell.editorStickySentinel}
+              aria-hidden
+            />
+
+            <div
+              className={`${editorShell.editorStickyShell} flowdocs-editor-sticky-shell${
+                stickyChromeScrolled ? ` ${editorShell.editorStickyShellScrolled}` : ''
+              }`}
+            >
+              <div className={`${editorShell.editorTopbar} flowdocs-editor-topbar`}>
+                <Box className={editorShell.docChromeBar}>
               <Box style={{ flex: 1, minWidth: 0 }} aria-hidden />
               <Group gap={8} wrap="nowrap" align="center" justify="center" style={{ flex: '0 1 auto' }}>
                 <Text size="xs" style={{ color: '#6b6f85', flexShrink: 0 }}>
@@ -2831,31 +2882,35 @@ export function DocumentEditorShell({
                   Paylaş
                 </Button>
               </Group>
-            </Box>
+                </Box>
+              </div>
 
-            <DocumentExportModal
+              <DocumentExportModal
               opened={exportModalOpen}
               onClose={() => setExportModalOpen(false)}
               documentId={documentId}
             />
 
-            {persistMessage ? (
-              <Box px="md" py={6} style={{ background: 'rgba(185, 28, 28, 0.12)' }}>
-                <Text size="xs" c="red">
-                  {persistMessage}
-                </Text>
-              </Box>
-            ) : null}
+              {persistMessage ? (
+                <Box className={editorShell.editorStickyPersist} px="md" py={6}>
+                  <Text size="xs" c="red">
+                    {persistMessage}
+                  </Text>
+                </Box>
+              ) : null}
 
-            <div className={editorShell.toolbarStrip}>
-              <EditorToolbarPlugin
-                disabled={!canEdit}
-                isUploadingImage={isUploadingImage}
-                isUploadingDocument={isUploadingDocument}
-                onUploadImage={handleUploadImage}
-                onUploadDocument={handleUploadDocument}
-                trailing={syncToolbarTrailing}
-              />
+              <div className={`${editorShell.editorToolbar} flowdocs-editor-toolbar`}>
+                <div className={editorShell.toolbarStrip}>
+                  <EditorToolbarPlugin
+                    disabled={!canEdit}
+                    isUploadingImage={isUploadingImage}
+                    isUploadingDocument={isUploadingDocument}
+                    onUploadImage={handleUploadImage}
+                    onUploadDocument={handleUploadDocument}
+                    trailing={syncToolbarTrailing}
+                  />
+                </div>
+              </div>
             </div>
 
             <div className={editorShell.bodyThreeCol}>
@@ -2951,7 +3006,7 @@ export function DocumentEditorShell({
                 </Box>
               </div>
 
-              <aside className={editorShell.rightRail}>
+              <aside className={`${editorShell.rightRail} flowdocs-editor-right-rail`}>
                 <Tabs
                   defaultValue="users"
                   className={editorShell.railTabs}

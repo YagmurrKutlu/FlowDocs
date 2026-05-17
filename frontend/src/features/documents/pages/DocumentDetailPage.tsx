@@ -143,9 +143,9 @@ export function DocumentDetailPage() {
         {detailQuery.isSuccess && detailQuery.data ? (
           <>
             <Box className={docPageStyles.editorPage}>
-              <Stack gap="xl" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+              <Stack gap={0} style={{ flex: 1, minHeight: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
                 {id ? (
-                  <Box style={{ flex: 1, minHeight: 0 }}>
+                  <Box className={docPageStyles.editorShellHost}>
                     <DocumentEditorShell
                       documentId={id}
                       canEdit={canEdit}

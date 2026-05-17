@@ -2,13 +2,27 @@
 .editorPage {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
-  min-height: calc(100vh - 56px);
+  flex: 0 0 auto;
+  height: calc(100dvh - 72px - 2rem);
+  max-height: calc(100dvh - 72px - 2rem);
+  min-height: 520px;
   margin-inline: calc(var(--mantine-spacing-lg) * -1);
   padding-inline: var(--mantine-spacing-lg);
-  padding-bottom: var(--mantine-spacing-xl);
+  padding-bottom: 0;
   background: #0c0d11;
   color: #e2e4f0;
+  overflow: hidden;
+}
+
+.editorShellHost {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
 }
 
 @media (max-width: 48em) {
