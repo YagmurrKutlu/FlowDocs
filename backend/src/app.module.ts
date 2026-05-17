@@ -11,6 +11,7 @@ import { PresenceModule } from './presence/presence.module';
 import { ActivityModule } from './activity/activity.module';
 import { ProfileModule } from './profile/profile.module';
 import { SettingsModule } from './settings/settings.module';
+import { TeamModule } from './team/team.module';
 import { HealthModule } from './health/health.module';
 import { CommonModule } from './common/common.module';
 import { ConfigModule } from './config/config.module';
@@ -48,6 +49,7 @@ import { envValidationSchema } from './config/env/env.validation';
     ActivityModule,
     ProfileModule,
     SettingsModule,
+    TeamModule,
     HealthModule,
     CommonModule,
     ConfigModule,

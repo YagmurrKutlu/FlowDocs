@@ -54,6 +54,7 @@ model User {
   authoredDocumentMessages DocumentMessage[] @relation("DocumentMessageAuthor")
   profile                  UserProfile?
   sessions                 UserSession[]
+  workspaceInvitesSent     WorkspaceInvite[] @relation("WorkspaceInviteInviter")
 }
 
 model UserSession {
@@ -105,6 +106,27 @@ model Workspace {
   documents   Document[]
   mediaFiles  MediaFile[]
   activities  ActivityLog[]
+  invites     WorkspaceInvite[]
+}
+
+model WorkspaceInvite {
+  id          String    @id @default(cuid())
+  workspaceId String
+  email       String
+  role        WorkspaceRole
+  invitedById String
+  status      String    @default("PENDING")
+  createdAt   DateTime  @default(now())
+  acceptedAt  DateTime?
+  cancelledAt DateTime?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy User      @relation("WorkspaceInviteInviter", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([email])
+  @@index([status])
+  @@unique([workspaceId, email, status], map: "workspace_invite_pending_unique")
 }
 
 model WorkspaceMember {

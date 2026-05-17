@@ -23,7 +23,7 @@ export function sidebarNavHref(key: SidebarNavKey): string {
     case 'documents-trash':
       return '/documents?view=trash';
     case 'team':
-      return '/dashboard?tab=team';
+      return '/team';
     case 'settings':
       return '/settings';
     case 'profile':
@@ -37,13 +37,11 @@ export function isSidebarNavActive(
 ): boolean {
   const q = new URLSearchParams(loc.search);
   const view = q.get('view');
-  const tab = q.get('tab');
-
   switch (key) {
     case 'dashboard':
-      return loc.pathname === '/dashboard' && tab !== 'team';
+      return loc.pathname === '/dashboard';
     case 'team':
-      return loc.pathname === '/dashboard' && tab === 'team';
+      return loc.pathname === '/team';
     case 'documents-mine':
       if (!loc.pathname.startsWith('/documents')) return false;
       return view == null || view === '';
