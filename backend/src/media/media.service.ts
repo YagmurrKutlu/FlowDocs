@@ -123,6 +123,40 @@ export class MediaService {
     };
   }
 
+  async readDocumentMediaBuffer(
+    userId: string,
+    documentId: string,
+    mediaId: string,
+  ): Promise<{ buffer: Buffer; mimeType: string } | null> {
+    const access = await this.getDocumentAccessContext(userId, documentId);
+    if (!access || !access.permissions.canRead) {
+      return null;
+    }
+
+    const media = await this.prisma.mediaFile.findFirst({
+      where: { id: mediaId, documentId },
+      select: {
+        objectKey: true,
+        bucket: true,
+        mimeType: true,
+      },
+    });
+    if (!media) {
+      return null;
+    }
+
+    try {
+      const stream = await this.minioClient.getObject(media.bucket, media.objectKey);
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      }
+      return { buffer: Buffer.concat(chunks), mimeType: media.mimeType };
+    } catch {
+      return null;
+    }
+  }
+
   async streamDocumentMediaFile(
     userId: string,
     documentId: string,

@@ -30,6 +30,7 @@ import {
   IconBold,
   IconCode,
   IconCodeDots,
+  IconDownload,
   IconHighlight,
   IconItalic,
   IconLetterA,
@@ -97,6 +98,7 @@ import { FlowDocsTablePlugin } from './FlowDocsTablePlugin';
 import { FlowDocsTableNode } from './nodes/FlowDocsTableNode';
 import { FileAttachmentFloatingToolbar } from './FileAttachmentFloatingToolbar';
 import { FileAttachmentSelectionPlugin } from './FileAttachmentSelectionPlugin';
+import { DocumentExportModal } from '../components/DocumentExportModal';
 import { persistFileAttachmentSelection } from './fileAttachmentSelection';
 import { TableFloatingToolbar } from './TableFloatingToolbar';
 import { ToolbarTableButton } from './ToolbarTableButton';
@@ -1870,6 +1872,7 @@ export function DocumentEditorShell({
   const ytext = useMemo(() => ydoc.getText('content'), [ydoc]);
   const ylexicalState = useMemo(() => ydoc.getMap<string>('lexicalState'), [ydoc]);
 
+  const [exportModalOpen, setExportModalOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [restorePayload, setRestorePayload] = useState<DocumentRestorePayload | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -2813,6 +2816,14 @@ export function DocumentEditorShell({
                 </Avatar.Group>
                 <Button
                   size="compact-sm"
+                  variant="default"
+                  leftSection={<IconDownload size={14} />}
+                  onClick={() => setExportModalOpen(true)}
+                >
+                  Dışarı Aktar
+                </Button>
+                <Button
+                  size="compact-sm"
                   variant="light"
                   onClick={onShareClick}
                   disabled={shareDisabled}
@@ -2821,6 +2832,12 @@ export function DocumentEditorShell({
                 </Button>
               </Group>
             </Box>
+
+            <DocumentExportModal
+              opened={exportModalOpen}
+              onClose={() => setExportModalOpen(false)}
+              documentId={documentId}
+            />
 
             {persistMessage ? (
               <Box px="md" py={6} style={{ background: 'rgba(185, 28, 28, 0.12)' }}>

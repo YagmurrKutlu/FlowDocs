@@ -9,5 +9,6 @@ import { MediaService } from './media.service';
   imports: [AuthModule, PrismaModule, ConfigModule],
   controllers: [MediaController],
   providers: [MediaService],
+  exports: [MediaService],
 })
 export class MediaModule {}

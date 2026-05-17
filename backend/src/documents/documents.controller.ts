@@ -8,8 +8,11 @@ import {
   Param,
   Post,
   Query,
+  Res,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
@@ -21,7 +24,9 @@ import { CreateDocumentDto } from './dto/create-document.dto';
 import { ListDocumentsQueryDto } from './dto/list-documents-query.dto';
 import { UpdateDocumentCommentDto } from './dto/update-document-comment.dto';
 import { UpdateDocumentMemberDto } from './dto/update-document-member.dto';
+import { DocumentExportService } from './document-export.service';
 import { DocumentYjsPersistenceService } from './document-yjs-persistence.service';
+import { ExportDocumentQueryDto } from './dto/export-document-query.dto';
 import { DocumentsService } from './documents.service';
 
 @Controller('documents')
@@ -32,6 +37,7 @@ export class DocumentsController {
   constructor(
     private readonly documentsService: DocumentsService,
     private readonly documentYjsPersistence: DocumentYjsPersistenceService,
+    private readonly documentExportService: DocumentExportService,
     private readonly realtimeService: RealtimeService,
   ) {}
 
@@ -214,6 +220,25 @@ export class DocumentsController {
     @Param('commentId') commentId: string,
   ) {
     return this.documentsService.deleteDocumentComment(user.id, id, commentId);
+  }
+
+  @Get(':id/export')
+  async exportDocument(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Query() query: ExportDocumentQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.documentExportService.exportDocument(
+      user.id,
+      id,
+      query.format,
+    );
+    res.set({
+      'Content-Type': result.mimeType,
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(result.filename)}"`,
+    });
+    return new StreamableFile(result.buffer);
   }
 
   @Get(':id')

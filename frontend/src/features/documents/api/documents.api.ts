@@ -224,3 +224,33 @@ export async function deleteDocumentComment(
   );
   return data;
 }
+
+export type DocumentExportFormat = 'pdf' | 'docx' | 'html' | 'markdown';
+
+export async function exportDocumentFile(
+  documentId: string,
+  format: DocumentExportFormat,
+): Promise<{ blob: Blob; filename: string }> {
+  const response = await apiClient.get<Blob>(`/documents/${documentId}/export`, {
+    params: { format },
+    responseType: 'blob',
+    timeout: 120_000,
+  });
+
+  const disposition = response.headers['content-disposition'];
+  let filename = `flowdocs-export.${format}`;
+  if (typeof disposition === 'string') {
+    const encodedMatch = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+    const plainMatch = disposition.match(/filename="?([^";]+)"?/i);
+    const raw = encodedMatch?.[1] ?? plainMatch?.[1];
+    if (raw) {
+      try {
+        filename = decodeURIComponent(raw);
+      } catch {
+        filename = raw;
+      }
+    }
+  }
+
+  return { blob: response.data, filename };
+}
