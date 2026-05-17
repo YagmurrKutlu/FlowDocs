@@ -44,6 +44,7 @@ import {
   requestBrowserNotificationPermission,
 } from '../utils/browserNotifications';
 import { clearFlowDocsLocalCache } from '../utils/clearLocalCache';
+import premium from '../../../shared/styles/premiumCard.module.css';
 import styles from './SettingsPage.module.css';
 
 const NAV_ICONS: Record<SettingsSectionId, ReactNode> = {
@@ -138,7 +139,9 @@ function SettingsSection({
   return (
     <section
       id={`settings-${id}`}
-      className={`${styles.sectionCard} ${danger ? styles.sectionCardDanger : ''}`}
+      className={`${styles.sectionCard} ${premium.premiumCard} ${
+        danger ? `${styles.sectionCardDanger} ${premium.accentDanger}` : premium.accentViolet
+      }`}
     >
       <div className={styles.sectionHeader}>
         <div
@@ -354,7 +357,9 @@ export function SettingsPage() {
   return (
     <div className={styles.page}>
       <div className={styles.container}>
-        <header className={styles.headerCard}>
+        <header
+          className={`${styles.headerCard} ${premium.premiumCard} ${premium.accentHero}`}
+        >
           <div className={styles.headerInner}>
             <div className={styles.headerText}>
               <h1 className={styles.pageTitle}>Ayarlar</h1>
@@ -369,7 +374,10 @@ export function SettingsPage() {
 
         <div className={styles.layout}>
           <aside className={styles.navAside}>
-            <nav className={styles.navCard} aria-label="Ayarlar bölümleri">
+            <nav
+              className={`${styles.navCard} ${premium.premiumCard} ${premium.accentViolet} ${premium.premiumCardNoHover}`}
+              aria-label="Ayarlar bölümleri"
+            >
             {SETTINGS_NAV.map((item) => (
               <button
                 key={item.id}

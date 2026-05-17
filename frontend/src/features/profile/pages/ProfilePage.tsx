@@ -27,7 +27,16 @@ import {
 } from '../hooks/useProfileQueries';
 import type { ProfileActivity, ProfileSession } from '../types/profile.types';
 import { formatStatNumber, initialsFromName, workspaceInitial } from '../utils/profileUtils';
+import premium from '../../../shared/styles/premiumCard.module.css';
 import styles from './ProfilePage.module.css';
+
+type ProfileCardAccent = 'blue' | 'green' | 'violet';
+
+const PROFILE_CARD_ACCENT: Record<ProfileCardAccent, string> = {
+  blue: premium.accentBlue,
+  green: premium.accentGreen,
+  violet: premium.accentViolet,
+};
 
 function showComingSoon(message: string) {
   notifications.show({
@@ -69,6 +78,8 @@ function ProfileCard({
   title,
   action,
   actionVariant = 'default',
+  accent = 'blue',
+  className,
   children,
 }: {
   title: string;
@@ -78,10 +89,14 @@ function ProfileCard({
     actionVariant?: 'default' | 'danger';
   };
   actionVariant?: 'default' | 'danger';
+  accent?: ProfileCardAccent;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className={`${styles.profileCard} ${styles.card}`}>
+    <section
+      className={`${styles.card} ${premium.premiumCard} ${PROFILE_CARD_ACCENT[accent]} ${className ?? ''}`}
+    >
       <header className={styles.cardHeader}>
         <h2 className={styles.cardTitle}>{title}</h2>
         {action ? (
@@ -117,9 +132,9 @@ export function ProfilePage() {
       <div className={styles.page}>
         <div className={styles.container}>
           <Skeleton className={`${styles.heroCard} ${styles.skeletonHero}`} />
-          <div className={styles.mainGrid}>
-            <Skeleton className={`${styles.profileCard} ${styles.skeletonCard}`} />
-            <Skeleton className={`${styles.profileCard} ${styles.skeletonCard}`} />
+          <div className={styles.profileStack}>
+            <Skeleton className={styles.skeletonCard} />
+            <Skeleton className={styles.skeletonCard} />
           </div>
         </div>
       </div>
@@ -152,7 +167,9 @@ export function ProfilePage() {
     <div className={styles.page}>
       <div className={styles.container}>
         {/* Hero */}
-        <section className={styles.heroCard}>
+        <section
+          className={`${styles.heroCard} ${premium.premiumCard} ${premium.accentHero} ${premium.radius28}`}
+        >
           <div className={styles.cover}>
             <div className={styles.coverGrid} aria-hidden />
             <Button
@@ -269,10 +286,9 @@ export function ProfilePage() {
           </div>
         </section>
 
-        <div className={styles.mainGrid}>
-          {/* Left column */}
-          <div className={styles.column}>
+        <div className={styles.profileStack}>
             <ProfileCard
+              accent="blue"
               title="Son Aktiviteler"
               action={{
                 label: 'Tümünü Gör',
@@ -320,6 +336,7 @@ export function ProfilePage() {
             </ProfileCard>
 
             <ProfileCard
+              accent="blue"
               title="Dokümanlarım"
               action={{
                 label: 'Tümünü Gör →',
@@ -363,6 +380,7 @@ export function ProfilePage() {
             </ProfileCard>
 
             <ProfileCard
+              accent="green"
               title="Güvenlik"
               action={{
                 label: 'Ayarla',
@@ -413,8 +431,50 @@ export function ProfilePage() {
               </div>
             </ProfileCard>
 
+            <ProfileCard accent="violet" title="Görünüm & Dil" className={styles.settingsCard}>
+              <div className={styles.settingRow}>
+                <p className={styles.settingLabel}>Dil</p>
+                <Select
+                  className={styles.selectField}
+                  value={data.appearance.language}
+                  data={[
+                    { value: 'tr', label: 'TR Türkçe' },
+                    { value: 'en', label: 'EN English' },
+                  ]}
+                  onChange={(value) => {
+                    if (value) {
+                      updateAppearance.mutate({
+                        language: value as 'tr' | 'en',
+                      });
+                    }
+                  }}
+                  disabled={updateAppearance.isPending}
+                />
+              </div>
+              <div className={styles.settingRow}>
+                <p className={styles.settingLabel}>Yazı Tipi</p>
+                <Select
+                  className={styles.selectField}
+                  value={data.appearance.fontFamily}
+                  data={[
+                    { value: 'Geist (Varsayılan)', label: 'Geist (Varsayılan)' },
+                    { value: 'Inter', label: 'Inter' },
+                    { value: 'System UI', label: 'System UI' },
+                  ]}
+                  onChange={(value) => {
+                    if (value) {
+                      updateAppearance.mutate({ fontFamily: value });
+                    }
+                  }}
+                  disabled={updateAppearance.isPending}
+                />
+              </div>
+            </ProfileCard>
+
             <ProfileCard
+              accent="green"
               title="Aktif Oturumlar"
+              className={styles.sessionCard}
               action={
                 data.sessions.length > 1
                   ? {
@@ -434,35 +494,38 @@ export function ProfilePage() {
                   </p>
                 </div>
               ) : (
-                <ul className={styles.rowList}>
+                <ul className={styles.sessionList}>
                   {data.sessions.map((session) => (
-                    <li key={session.id} className={styles.rowItem}>
-                      <div className={styles.rowIcon}>
+                    <li key={session.id} className={styles.sessionRow}>
+                      <div className={styles.sessionIcon} aria-hidden>
                         {isMobileSession(session) ? (
-                          <IconDeviceMobile size={20} />
+                          <IconDeviceMobile size={18} />
                         ) : (
-                          <IconDeviceLaptop size={20} />
+                          <IconDeviceLaptop size={18} />
                         )}
                       </div>
-                      <div className={styles.rowMain}>
-                        <p className={styles.rowTitle}>
-                          {session.deviceLabel || session.device}
+                      <div className={styles.sessionMeta}>
+                        <p className={styles.sessionTitle}>
+                          <span className={styles.sessionDevice}>
+                            {session.deviceLabel || session.device}
+                          </span>
                           {session.isCurrent ? (
                             <span className={styles.sessionCurrentBadge}>Mevcut</span>
                           ) : null}
                         </p>
-                        <p className={styles.rowSub}>
-                          {session.location} · {session.ipMasked} · {session.lastActiveLabel}
+                        <p className={styles.sessionSub}>
+                          {session.location} · {session.ipMasked} ·{' '}
+                          {session.lastActiveLabel}
                         </p>
                       </div>
                       {!session.isCurrent ? (
                         <button
                           type="button"
-                          className={styles.cardAction}
+                          className={`${styles.cardAction} ${styles.sessionRevokeBtn}`}
                           onClick={() => revokeSession.mutate(session.id)}
                           disabled={revokeSession.isPending}
                         >
-                          İptal Et
+                          İptal
                         </button>
                       ) : null}
                     </li>
@@ -470,11 +533,9 @@ export function ProfilePage() {
                 </ul>
               )}
             </ProfileCard>
-          </div>
 
-          {/* Right column */}
-          <div className={styles.column}>
-<ProfileCard
+            <ProfileCard
+              accent="violet"
               title="Çalışma Alanları"
               action={{
                 label: '+ Yeni',
@@ -514,47 +575,6 @@ export function ProfilePage() {
                 </ul>
               )}
             </ProfileCard>
-
-            <ProfileCard title="Görünüm & Dil">
-              <div className={styles.settingRow}>
-                <p className={styles.settingLabel}>Dil</p>
-                <Select
-                  className={styles.selectField}
-                  value={data.appearance.language}
-                  data={[
-                    { value: 'tr', label: 'TR Türkçe' },
-                    { value: 'en', label: 'EN English' },
-                  ]}
-                  onChange={(value) => {
-                    if (value) {
-                      updateAppearance.mutate({
-                        language: value as 'tr' | 'en',
-                      });
-                    }
-                  }}
-                  disabled={updateAppearance.isPending}
-                />
-              </div>
-              <div className={styles.settingRow}>
-                <p className={styles.settingLabel}>Yazı Tipi</p>
-                <Select
-                  className={styles.selectField}
-                  value={data.appearance.fontFamily}
-                  data={[
-                    { value: 'Geist (Varsayılan)', label: 'Geist (Varsayılan)' },
-                    { value: 'Inter', label: 'Inter' },
-                    { value: 'System UI', label: 'System UI' },
-                  ]}
-                  onChange={(value) => {
-                    if (value) {
-                      updateAppearance.mutate({ fontFamily: value });
-                    }
-                  }}
-                  disabled={updateAppearance.isPending}
-                />
-              </div>
-            </ProfileCard>
-          </div>
         </div>
       </div>
 
