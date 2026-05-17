@@ -5,6 +5,7 @@ import { DashboardPage } from '../../features/dashboard/pages/DashboardPage';
 import { DocumentDetailPage } from '../../features/documents/pages/DocumentDetailPage';
 import { DocumentsPage } from '../../features/documents/pages/DocumentsPage';
 import { ProfilePage } from '../../features/profile/pages/ProfilePage';
+import { SettingsPage } from '../../features/settings/pages/SettingsPage';
 import { GlobalLayout } from '../../layouts/GlobalLayout';
 import { ProtectedRoute, PublicRoute } from './route-guards';
 
@@ -23,6 +24,7 @@ export function AppRouter() {
             <Route path="/documents" element={<DocumentsPage />} />
             <Route path="/documents/:id" element={<DocumentDetailPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Route>
 

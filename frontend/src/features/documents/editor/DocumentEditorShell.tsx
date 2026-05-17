@@ -94,6 +94,12 @@ import {
   postDocumentUpdate,
 } from '../api/documents.api';
 import { documentsQueryKeys } from '../hooks/useDocumentsQueries';
+import { settingsQueryKeys } from '../../settings/hooks/useSettingsQueries';
+import type { UserSettings } from '../../settings/types/settings.types';
+import {
+  showFlowDocsBrowserNotification,
+  truncateNotificationBody,
+} from '../../settings/utils/browserNotifications';
 import {
   removeDocumentMessageFromCache,
   upsertDocumentMessageInCache,
@@ -111,6 +117,15 @@ import { FileAttachmentSelectionPlugin } from './FileAttachmentSelectionPlugin';
 import { DocumentExportModal } from '../components/DocumentExportModal';
 import { persistFileAttachmentSelection } from './fileAttachmentSelection';
 import { TableFloatingToolbar } from './TableFloatingToolbar';
+import { FloatingSelectionToolbar } from './FloatingSelectionToolbar';
+import { SyncDiagnosticsPanel } from './SyncDiagnosticsPanel';
+import { SmartSuggestionsPlugin } from './SmartSuggestionsPlugin';
+import {
+  incrementLocalUpdateCount,
+  incrementRemoteUpdateCount,
+  patchSyncDiagnostics,
+  resetSyncDiagnostics,
+} from './editorSyncDiagnosticsStore';
 import { ToolbarTableButton } from './ToolbarTableButton';
 import {
   logRestoredContainsTable,
@@ -2071,6 +2086,22 @@ export function DocumentEditorShell({
   }, [rightRailTab]);
 
   useEffect(() => {
+    resetSyncDiagnostics(documentId, canEdit ? 'editor' : 'viewer');
+  }, [documentId, canEdit]);
+
+  useEffect(() => {
+    patchSyncDiagnostics({
+      persistStatus,
+      documentId,
+      userRole: canEdit ? 'editor' : 'viewer',
+    });
+  }, [persistStatus, documentId, canEdit]);
+
+  useEffect(() => {
+    patchSyncDiagnostics({ collaboratorCount: activeUsers.length });
+  }, [activeUsers.length]);
+
+  useEffect(() => {
     if (rightRailTab === 'messages') {
       setMessagesUnreadCount(0);
     }
@@ -2602,6 +2633,10 @@ export function DocumentEditorShell({
         origin: originName,
         bytes: update.byteLength,
       });
+      if (origin === EDITOR_ORIGIN) {
+        incrementLocalUpdateCount();
+      }
+      patchSyncDiagnostics({ pendingQueueLength: pending.current.length });
       if (origin === LOAD_ORIGIN || origin === REMOTE_ORIGIN) return;
       if (!canEdit) return;
       if (!editorRestoreCompleteRef.current) {
@@ -2610,6 +2645,7 @@ export function DocumentEditorShell({
       }
 
       pending.current.push(update);
+      patchSyncDiagnostics({ pendingQueueLength: pending.current.length });
 
       if (flushTimer.current) {
         clearTimeout(flushTimer.current);
@@ -2836,14 +2872,17 @@ export function DocumentEditorShell({
 
     socket.on('connect', () => {
       console.log('[realtime] connected:', socket.id);
+      patchSyncDiagnostics({ socketConnected: true });
     });
 
     socket.on('connect_error', (error) => {
       console.error('[realtime] connect_error:', error.message, error);
+      patchSyncDiagnostics({ socketConnected: false });
     });
 
     socket.on('disconnect', (reason) => {
       console.warn('[realtime] disconnected:', reason);
+      patchSyncDiagnostics({ socketConnected: false });
     });
 
     const handlePresence = (event: DocumentPresenceEvent) => {
@@ -2885,6 +2924,7 @@ export function DocumentEditorShell({
           bytes: bytes.byteLength,
         });
         Y.applyUpdate(ydoc, bytes, REMOTE_ORIGIN);
+        incrementRemoteUpdateCount();
 
         if (
           typeof event.editorStateJson === 'string' &&
@@ -2975,6 +3015,19 @@ export function DocumentEditorShell({
         authorId === authUser?.id || event.message.isMine === true;
       if (!isOwnMessage && rightRailTabRef.current !== 'messages') {
         setMessagesUnreadCount((count) => count + 1);
+
+        const settings = queryClient.getQueryData<UserSettings>(
+          settingsQueryKeys.me(),
+        );
+        if (settings?.notificationPreferences.browserNotifications) {
+          const authorName =
+            event.message.author.name?.trim() || 'Bir kullanıcı';
+          showFlowDocsBrowserNotification({
+            title: 'FlowDocs — Yeni mesaj',
+            body: `${authorName}: ${truncateNotificationBody(event.message.body)}`,
+            tag: `flowdocs-msg-${event.message.id}`,
+          });
+        }
       }
 
       clearTypingUser(authorId);
@@ -3278,7 +3331,9 @@ export function DocumentEditorShell({
                 <DocumentOutlinePanel scrollContainerRef={editorContainerRef} />
               </aside>
 
-              <div className={editorShell.centerColumn}>
+              <div
+                className={`${editorShell.centerColumn} ${editorShell.centerColumnWithDiagnostics}`}
+              >
                 <Box className={editorShell.centerCanvasStack}>
                   <div ref={editorContainerRef} className={editorShell.canvasWorkbench}>
                     <div className={`${editorShell.documentPage} flowdocs-document-page`}>
@@ -3310,6 +3365,7 @@ export function DocumentEditorShell({
                     <div className={editorShell.editorFloatingChrome}>
                       <TableFloatingToolbar anchorRef={editorContainerRef} />
                       <FileAttachmentFloatingToolbar anchorRef={editorContainerRef} />
+                      <FloatingSelectionToolbar anchorRef={editorContainerRef} />
                     </div>
                   </div>
                   <Box className={editorShell.cursorOverlayLayer}>
@@ -3363,6 +3419,7 @@ export function DocumentEditorShell({
                     ))}
                   </Box>
                 </Box>
+                <SyncDiagnosticsPanel />
               </div>
 
               <aside className={`${editorShell.rightRail} flowdocs-editor-right-rail`}>
@@ -3520,6 +3577,7 @@ export function DocumentEditorShell({
             <ImageClipboardPlugin />
             <ImageDragDropPlugin />
             <FileAttachmentSelectionPlugin />
+            <SmartSuggestionsPlugin />
 
             <footer className={editorShell.statusBar}>
               <Text component="span">Satır — · Sütun —</Text>

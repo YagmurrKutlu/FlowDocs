@@ -1,0 +1,41 @@
+/* FlowDocs accessibility preferences (settings-driven) */
+
+html[data-reduced-motion='true'],
+html.flowdocs-reduced-motion {
+  scroll-behavior: auto;
+}
+
+html[data-reduced-motion='true'] *,
+html.flowdocs-reduced-motion * {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+html[data-high-contrast='true'],
+html.flowdocs-high-contrast {
+  --border-color: rgba(255, 255, 255, 0.22);
+  --text-primary: #ffffff;
+  --text-muted: #c8cdd8;
+}
+
+html[data-high-contrast='true'] .mantine-Card-root,
+html.flowdocs-high-contrast .mantine-Card-root {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+html[data-large-text='true'],
+html.flowdocs-large-text {
+  font-size: 106%;
+}
+
+html[data-large-text='true'] .flowdocs-editor-content,
+html.flowdocs-large-text .flowdocs-editor-content {
+  font-size: 1.06em;
+}
+
+html[data-visible-focus='true'] :focus-visible,
+html.flowdocs-visible-focus :focus-visible {
+  outline: 2px solid #8b85d4 !important;
+  outline-offset: 2px !important;
+}

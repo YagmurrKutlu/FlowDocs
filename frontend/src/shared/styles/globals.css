@@ -1,4 +1,5 @@
 @import './theme-tokens.css';
+@import './accessibility.css';
 
 :root {
   font-synthesis: none;

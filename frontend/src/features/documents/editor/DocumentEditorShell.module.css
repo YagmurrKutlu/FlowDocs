@@ -1073,3 +1073,110 @@
     top: 0;
   }
 }
+
+.selectionFloatingToolbar {
+  position: absolute;
+  z-index: 115;
+  display: flex;
+  align-items: center;
+  padding: 4px 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(139, 133, 212, 0.28);
+  background: #1a1530;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+  pointer-events: auto;
+}
+
+.selectionFloatingBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  color: #e8e6ff;
+  transition: background 0.12s ease;
+}
+
+.selectionFloatingBtn:hover {
+  background: rgba(139, 133, 212, 0.22);
+}
+
+.syncDiagnosticsPanel {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 350;
+  width: min(280px, calc(100% - 24px));
+  border-radius: 12px;
+  border: 1px solid rgba(139, 133, 212, 0.2);
+  background: rgba(26, 21, 48, 0.94);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+  pointer-events: auto;
+}
+
+.syncDiagnosticsHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  color: #c4c0f0;
+}
+
+.syncDiagnosticsBody {
+  padding: 0 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.syncDiagRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.75rem;
+}
+
+.syncDiagLabel {
+  color: #9ea3b5;
+}
+
+.syncDiagValue {
+  color: #f5f7ff;
+  font-family: ui-monospace, monospace;
+  text-align: right;
+}
+
+.smartSuggestionsBanner {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 340;
+  max-width: 280px;
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(139, 133, 212, 0.22);
+  background: rgba(26, 21, 48, 0.92);
+  color: #c4c0f0;
+  pointer-events: none;
+}
+
+.smartSuggestionsTitle {
+  color: #e8e6ff;
+  margin-bottom: 2px;
+}
+
+.smartSuggestionsText {
+  color: #9ea3b5;
+  line-height: 1.35;
+}
+
+.centerColumnWithDiagnostics {
+  position: relative;
+}

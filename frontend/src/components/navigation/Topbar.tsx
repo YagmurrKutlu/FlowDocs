@@ -14,6 +14,10 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
     title: 'Profil',
     subtitle: 'Hesap bilgileriniz, aktiviteler ve tercihler.',
   },
+  '/settings': {
+    title: 'Ayarlar',
+    subtitle: 'FlowDocs deneyimini ve editör tercihlerini yönetin.',
+  },
 };
 
 export function Topbar() {

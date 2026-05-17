@@ -1,4 +1,4 @@
-import { Button, Select, Skeleton, Switch } from '@mantine/core';
+import { Button, Select, Skeleton } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
   IconBolt,
@@ -24,7 +24,6 @@ import {
   useRevokeProfileSessionMutation,
   useUpdateProfileAppearanceMutation,
   useUpdateProfileMutation,
-  useUpdateProfileNotificationsMutation,
 } from '../hooks/useProfileQueries';
 import type { ProfileActivity, ProfileSession } from '../types/profile.types';
 import { formatStatNumber, initialsFromName, workspaceInitial } from '../utils/profileUtils';
@@ -109,7 +108,6 @@ export function ProfilePage() {
   const [editOpen, setEditOpen] = useState(false);
   const profileQuery = useMyProfileQuery();
   const updateProfile = useUpdateProfileMutation();
-  const updateNotifications = useUpdateProfileNotificationsMutation();
   const updateAppearance = useUpdateProfileAppearanceMutation();
   const revokeSession = useRevokeProfileSessionMutation();
   const revokeAllSessions = useRevokeAllProfileSessionsMutation();
@@ -476,52 +474,7 @@ export function ProfilePage() {
 
           {/* Right column */}
           <div className={styles.column}>
-            <ProfileCard title="Bildirimler">
-              {(
-                [
-                  {
-                    key: 'editNotifications' as const,
-                    label: 'Düzenleme Bildirimleri',
-                    hint: 'Paylaşılan doküman düzenlendiğinde',
-                  },
-                  {
-                    key: 'commentNotifications' as const,
-                    label: 'Yorum Bildirimleri',
-                    hint: 'Yorumlarınıza yanıt geldiğinde',
-                  },
-                  {
-                    key: 'userJoinedNotifications' as const,
-                    label: 'Kullanıcı Katıldı',
-                    hint: 'Bir kullanıcı dokümana katıldığında',
-                  },
-                  {
-                    key: 'emailSummary' as const,
-                    label: 'E-posta Özeti',
-                    hint: 'Haftalık aktivite özeti',
-                  },
-                ] as const
-              ).map((item) => (
-                <div key={item.key} className={styles.settingRow}>
-                  <div>
-                    <p className={styles.settingLabel}>{item.label}</p>
-                    <p className={styles.settingHint}>{item.hint}</p>
-                  </div>
-                  <Switch
-                    checked={data.notifications[item.key]}
-                    disabled={updateNotifications.isPending}
-                    onChange={(event) => {
-                      updateNotifications.mutate({
-                        [item.key]: event.currentTarget.checked,
-                      });
-                    }}
-                    color="violet"
-                    size="md"
-                  />
-                </div>
-              ))}
-            </ProfileCard>
-
-            <ProfileCard
+<ProfileCard
               title="Çalışma Alanları"
               action={{
                 label: '+ Yeni',
