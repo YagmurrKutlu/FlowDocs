@@ -15,6 +15,7 @@ import { apiClient } from '../../shared/api/client';
 import type { WorkspaceListResponse } from '../../shared/api/contracts';
 import { useDocumentsListQuery } from '../../features/documents/hooks/useDocumentsQueries';
 import { useFavoritesSummaryQuery } from '../../features/favorites/hooks/useFavoritesQueries';
+import { useSharedSummaryQuery } from '../../features/shared/hooks/useSharedQueries';
 import { useTrashSummaryQuery } from '../../features/trash/hooks/useTrashQueries';
 import { useAuthStore } from '../../store/auth.store';
 import { CollapseButton } from './CollapseButton';
@@ -48,9 +49,13 @@ export function AppSidebar({ collapsed, onToggleCollapse }: AppSidebarProps) {
   const listQuery = useDocumentsListQuery();
   const trashSummaryQuery = useTrashSummaryQuery();
   const favoritesSummaryQuery = useFavoritesSummaryQuery();
+  const sharedSummaryQuery = useSharedSummaryQuery();
   const documents = listQuery.data?.documents ?? [];
   const trashBadge = trashSummaryQuery.data?.deletedDocumentCount ?? 0;
   const favoritesBadge = favoritesSummaryQuery.data?.favoriteCount ?? 0;
+  const sharedBadge =
+    (sharedSummaryQuery.data?.withMeCount ?? 0) +
+    (sharedSummaryQuery.data?.byMeCount ?? 0);
 
   const liveBadge = useMemo(
     () => documents.filter((d) => isLiveRecently(d.updatedAt, 72)).length,
@@ -128,6 +133,7 @@ export function AppSidebar({ collapsed, onToggleCollapse }: AppSidebarProps) {
                   label="Paylaşılanlar"
                   icon={IconUsers}
                   collapsed={collapsed}
+                  badge={sharedBadge > 0 ? sharedBadge : null}
                 />
                 <SidebarNavItem
                   navKey="documents-favorites"

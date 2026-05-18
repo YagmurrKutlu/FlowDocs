@@ -16,9 +16,10 @@ import {
   TextInput,
 } from '@mantine/core';
 import { IconTrash } from '@tabler/icons-react';
+import { notifications } from '@mantine/notifications';
 import axios from 'axios';
-import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { PageContainer } from '../../../components/ui/PageContainer';
 import { getApiErrorMessage } from '../../../shared/api/errors';
 import { useAuthStore } from '../../../store/auth.store';
@@ -50,6 +51,8 @@ function formatDate(iso: string): string {
 export function DocumentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const shareAutoOpenedRef = useRef(false);
   const authUser = useAuthStore((s) => s.user);
   const detailQuery = useDocumentDetailQuery(id);
   const membersQuery = useDocumentMembersQuery(id);
@@ -71,6 +74,32 @@ export function DocumentDetailPage() {
   const canEdit = Boolean(detailQuery.data?.document.permissions.canEdit);
   const canRead = Boolean(detailQuery.data?.document.permissions.canRead);
   const currentUserId = authUser?.id;
+
+  useEffect(() => {
+    if (searchParams.get('share') !== 'open') {
+      shareAutoOpenedRef.current = false;
+      return;
+    }
+
+    if (!detailQuery.isSuccess || shareAutoOpenedRef.current) {
+      return;
+    }
+
+    shareAutoOpenedRef.current = true;
+
+    if (canShare) {
+      setShareModalOpen(true);
+    } else {
+      notifications.show({
+        color: 'orange',
+        message: 'Paylaşım ayarlarını yönetme yetkiniz yok.',
+      });
+    }
+
+    const next = new URLSearchParams(searchParams);
+    next.delete('share');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, detailQuery.isSuccess, canShare, setSearchParams]);
 
   const handleAddMember = () => {
     if (!id) return;

@@ -1,5 +1,6 @@
 import { ActionIcon, Tooltip } from '@mantine/core';
 import { IconStar, IconStarFilled } from '@tabler/icons-react';
+import axios from 'axios';
 import { notifications } from '@mantine/notifications';
 import { getApiErrorMessage } from '../../../shared/api/errors';
 import { useToggleFavoriteMutation } from '../../favorites/hooks/useFavoritesQueries';
@@ -33,9 +34,18 @@ export function DocumentFavoriteButton({
           });
         },
         onError: (error) => {
+          let message = getApiErrorMessage(error);
+          if (axios.isAxiosError(error)) {
+            const status = error.response?.status;
+            if (status === 410) {
+              message = 'Bu doküman çöp kutusunda.';
+            } else if (status === 403 || status === 404) {
+              message = 'Bu dokümana erişiminiz artık yok.';
+            }
+          }
           notifications.show({
             color: 'red',
-            message: getApiErrorMessage(error),
+            message,
           });
         },
       },
