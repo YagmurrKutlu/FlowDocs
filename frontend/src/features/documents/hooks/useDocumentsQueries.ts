@@ -4,6 +4,7 @@ import {
   createDocument,
   createDocumentComment,
   createDocumentMessage,
+  deleteDocument,
   deleteDocumentComment,
   deleteDocumentMessage,
   fetchDocumentById,
@@ -61,6 +62,20 @@ export function useCreateDocumentMutation() {
     mutationFn: (payload: CreateDocumentPayload) => createDocument(payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: documentsQueryKeys.list() });
+    },
+  });
+}
+
+export function useDeleteDocumentMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (documentId: string) => deleteDocument(documentId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: documentsQueryKeys.list() });
+      void queryClient.invalidateQueries({ queryKey: ['trash'] });
+      void queryClient.invalidateQueries({ queryKey: ['team'] });
+      void queryClient.invalidateQueries({ queryKey: ['profile'] });
     },
   });
 }

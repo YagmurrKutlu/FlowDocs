@@ -22,6 +22,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { PageContainer } from '../../../components/ui/PageContainer';
 import { getApiErrorMessage } from '../../../shared/api/errors';
 import { useAuthStore } from '../../../store/auth.store';
+import { DocumentInTrashView } from '../components/DocumentInTrashView';
 import { DocumentCommentsPanel } from '../components/DocumentCommentsPanel';
 import { DocumentMessagesPanel } from '../components/DocumentMessagesPanel';
 import { DocumentEditorShell } from '../editor/DocumentEditorShell';
@@ -65,6 +66,7 @@ export function DocumentDetailPage() {
 
   const isForbidden = status === 403;
   const isNotFound = status === 404;
+  const isInTrash = status === 410;
   const canShare = Boolean(detailQuery.data?.document.permissions.canShare);
   const canEdit = Boolean(detailQuery.data?.document.permissions.canEdit);
   const canRead = Boolean(detailQuery.data?.document.permissions.canRead);
@@ -285,6 +287,14 @@ export function DocumentDetailPage() {
   }
 
   if (detailQuery.isError) {
+    if (isInTrash) {
+      return (
+        <PageContainer>
+          <DocumentInTrashView />
+        </PageContainer>
+      );
+    }
+
     return (
       <PageContainer>
         <Alert
@@ -301,7 +311,7 @@ export function DocumentDetailPage() {
           <Stack gap="sm">
             <Text size="sm">{getApiErrorMessage(detailQuery.error)}</Text>
             <Button variant="light" onClick={() => navigate('/documents')}>
-              Return to documents
+              Dokümanlara Dön
             </Button>
           </Stack>
         </Alert>

@@ -140,7 +140,7 @@ export class TeamService {
         }),
         this.prisma.document.groupBy({
           by: ['workspaceId'],
-          where: { workspaceId: { in: workspaceIds } },
+          where: { workspaceId: { in: workspaceIds }, deletedAt: null },
           _count: { _all: true },
         }),
       ]);
@@ -207,7 +207,7 @@ export class TeamService {
     await this.assertWorkspaceMember(userId, workspaceId);
 
     const documents = await this.prisma.document.findMany({
-      where: { workspaceId },
+      where: { workspaceId, deletedAt: null },
       orderBy: { updatedAt: 'desc' },
       select: {
         id: true,
@@ -622,7 +622,7 @@ export class TeamService {
 
     const [recentDocs, recentInvites, recentMembers] = await Promise.all([
       this.prisma.document.findMany({
-        where: { workspaceId },
+        where: { workspaceId, deletedAt: null },
         orderBy: { createdAt: 'desc' },
         take: 5,
         select: {
@@ -822,15 +822,57 @@ export class TeamService {
           actorName: log.actor.fullName,
           createdAt: log.createdAt,
         };
-      case ActivityType.DOCUMENT_UPDATED:
+      case ActivityType.DOCUMENT_UPDATED: {
+        const action =
+          typeof meta.action === 'string' ? meta.action : undefined;
+        const docTitle =
+          log.document?.title ??
+          (typeof meta.title === 'string' ? meta.title : 'Doküman');
+
+        if (action === 'moved_to_trash') {
+          return {
+            id: log.id,
+            type: log.type,
+            title: `${docTitle} çöp kutusuna taşındı`,
+            description: docTitle,
+            actorName: log.actor.fullName,
+            createdAt: log.createdAt,
+          };
+        }
+        if (action === 'restored') {
+          return {
+            id: log.id,
+            type: log.type,
+            title: `${docTitle} geri yüklendi`,
+            description: docTitle,
+            actorName: log.actor.fullName,
+            createdAt: log.createdAt,
+          };
+        }
+        if (action === 'permanently_deleted') {
+          const permanentTitle =
+            typeof meta.title === 'string' && meta.title.trim()
+              ? `${meta.title} kalıcı olarak silindi`
+              : 'Bir doküman kalıcı olarak silindi';
+          return {
+            id: log.id,
+            type: log.type,
+            title: permanentTitle,
+            description: log.actor.fullName,
+            actorName: log.actor.fullName,
+            createdAt: log.createdAt,
+          };
+        }
+
         return {
           id: log.id,
           type: log.type,
           title: 'Doküman güncellendi',
-          description: log.document?.title ?? 'Doküman',
+          description: docTitle,
           actorName: log.actor.fullName,
           createdAt: log.createdAt,
         };
+      }
       case ActivityType.DOCUMENT_SHARED:
         return {
           id: log.id,

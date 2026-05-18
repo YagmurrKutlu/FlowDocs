@@ -11,21 +11,53 @@ import {
   Title,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
+import { notifications } from '@mantine/notifications';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageContainer } from '../../../components/ui/PageContainer';
 import { AppCard } from '../../../components/ui/AppCard';
 import { getApiErrorMessage } from '../../../shared/api/errors';
 import { CreateDocumentModal } from '../components/CreateDocumentModal';
 import { DocumentCard } from '../components/DocumentCard';
-import { useDocumentsListQuery } from '../hooks/useDocumentsQueries';
+import { MoveToTrashModal } from '../components/MoveToTrashModal';
+import {
+  useDeleteDocumentMutation,
+  useDocumentsListQuery,
+} from '../hooks/useDocumentsQueries';
+import type { DocumentListItem } from '../types/document.types';
 
 export function DocumentsPage() {
   const navigate = useNavigate();
   const [createOpened, { open: openCreate, close: closeCreate }] =
     useDisclosure(false);
   const listQuery = useDocumentsListQuery();
+  const deleteMutation = useDeleteDocumentMutation();
+  const [trashTarget, setTrashTarget] = useState<DocumentListItem | null>(null);
 
   const documents = listQuery.data?.documents ?? [];
+
+  const handleMoveToTrash = (doc: DocumentListItem) => {
+    setTrashTarget(doc);
+  };
+
+  const confirmMoveToTrash = () => {
+    if (!trashTarget) return;
+    void deleteMutation.mutate(trashTarget.id, {
+      onSuccess: () => {
+        notifications.show({
+          color: 'green',
+          message: 'Doküman çöp kutusuna taşındı.',
+        });
+        setTrashTarget(null);
+      },
+      onError: (error) => {
+        notifications.show({
+          color: 'red',
+          message: getApiErrorMessage(error),
+        });
+      },
+    });
+  };
 
   return (
     <PageContainer>
@@ -75,7 +107,14 @@ export function DocumentsPage() {
         {!listQuery.isLoading && !listQuery.isError && documents.length > 0 ? (
           <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
             {documents.map((doc) => (
-              <DocumentCard key={doc.id} document={doc} />
+              <DocumentCard
+                key={doc.id}
+                document={doc}
+                onDelete={handleMoveToTrash}
+                deleteLoading={
+                  deleteMutation.isPending && deleteMutation.variables === doc.id
+                }
+              />
             ))}
           </SimpleGrid>
         ) : null}
@@ -105,6 +144,14 @@ export function DocumentsPage() {
           }}
         />
       </Modal>
+
+      <MoveToTrashModal
+        opened={trashTarget !== null}
+        documentTitle={trashTarget?.title ?? ''}
+        loading={deleteMutation.isPending}
+        onClose={() => setTrashTarget(null)}
+        onConfirm={confirmMoveToTrash}
+      />
     </PageContainer>
   );
 }

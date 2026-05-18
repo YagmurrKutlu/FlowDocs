@@ -335,6 +335,7 @@ export class RealtimeGateway
     const document = await this.prisma.document.findFirst({
       where: {
         id: documentId,
+        deletedAt: null,
         OR: [
           {
             workspace: {

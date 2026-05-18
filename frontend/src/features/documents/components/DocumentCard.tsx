@@ -1,5 +1,5 @@
-import { Badge, Group, Stack, Text } from '@mantine/core';
-import { IconChevronRight } from '@tabler/icons-react';
+import { ActionIcon, Badge, Group, Stack, Text, Tooltip } from '@mantine/core';
+import { IconChevronRight, IconTrash } from '@tabler/icons-react';
 import { Link } from 'react-router-dom';
 import { AppCard } from '../../../components/ui/AppCard';
 import type { DocumentListItem } from '../types/document.types';
@@ -17,9 +17,15 @@ function formatUpdatedAt(iso: string): string {
 
 interface DocumentCardProps {
   document: DocumentListItem;
+  onDelete?: (document: DocumentListItem) => void;
+  deleteLoading?: boolean;
 }
 
-export function DocumentCard({ document }: DocumentCardProps) {
+export function DocumentCard({
+  document,
+  onDelete,
+  deleteLoading,
+}: DocumentCardProps) {
   return (
     <Link
       to={`/documents/${document.id}`}
@@ -58,7 +64,26 @@ export function DocumentCard({ document }: DocumentCardProps) {
               </Text>
             </Group>
           </Stack>
-          <IconChevronRight size={20} color="var(--mantine-color-dimmed)" />
+          <Group gap="xs" wrap="nowrap">
+            {onDelete ? (
+              <Tooltip label="Çöp Kutusuna Taşı" withArrow position="top">
+                <ActionIcon
+                  variant="subtle"
+                  color="orange"
+                  aria-label="Çöp Kutusuna Taşı"
+                  loading={deleteLoading}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onDelete(document);
+                  }}
+                >
+                  <IconTrash size={18} />
+                </ActionIcon>
+              </Tooltip>
+            ) : null}
+            <IconChevronRight size={20} color="var(--mantine-color-dimmed)" />
+          </Group>
         </Group>
       </AppCard>
     </Link>

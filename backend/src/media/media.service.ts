@@ -274,6 +274,7 @@ export class MediaService {
       select: {
         id: true,
         workspaceId: true,
+        deletedAt: true,
         members: {
           where: { userId },
           select: { role: true },
@@ -291,7 +292,7 @@ export class MediaService {
       },
     });
 
-    if (!document) {
+    if (!document || document.deletedAt) {
       return null;
     }
 

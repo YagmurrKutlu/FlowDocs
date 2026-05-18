@@ -48,7 +48,7 @@ export function SidebarNavItem({
       : 'var(--fd-nav-idle-text)';
 
   const badgeNode =
-    !collapsed && active && badge != null && badge > 0 ? (
+    !collapsed && badge != null && badge > 0 ? (
       <span
         style={{
           fontSize: 11,
@@ -118,7 +118,7 @@ export function SidebarNavItem({
 
   if (collapsed) {
     const tip =
-      badge != null && badge > 0 && active ? `${label} (${badge})` : label;
+      badge != null && badge > 0 ? `${label} (${badge})` : label;
     return (
       <Tooltip label={tip} position="right" withArrow>
         {link}

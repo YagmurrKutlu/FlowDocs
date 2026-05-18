@@ -34,6 +34,15 @@ export async function fetchDocuments(): Promise<DocumentListResponse> {
   return data;
 }
 
+export async function deleteDocument(
+  documentId: string,
+): Promise<{ message: string }> {
+  const { data } = await apiClient.delete<{ message: string }>(
+    `/documents/${documentId}`,
+  );
+  return data;
+}
+
 export async function createDocumentMediaPresign(
   documentId: string,
   payload: PresignDocumentMediaPayload,

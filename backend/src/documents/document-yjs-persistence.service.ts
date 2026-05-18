@@ -330,6 +330,7 @@ export class DocumentYjsPersistenceService {
     return tx.document.findFirst({
       where: {
         id: documentId,
+        deletedAt: null,
         OR: [
           {
             workspace: {

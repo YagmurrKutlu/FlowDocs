@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  GoneException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -87,6 +88,7 @@ export class DocumentsService {
 
     const documents = await this.prisma.document.findMany({
       where: {
+        deletedAt: null,
         OR: [
           {
             workspace: {
@@ -127,13 +129,89 @@ export class DocumentsService {
     return (await this.assertDocumentReadAccess(userId, documentId)).documentTitle;
   }
 
+  async softDeleteDocument(userId: string, documentId: string) {
+    const document = await this.prisma.document.findUnique({
+      where: { id: documentId },
+      select: {
+        id: true,
+        title: true,
+        workspaceId: true,
+        deletedAt: true,
+        createdById: true,
+        members: {
+          where: { userId },
+          select: { role: true },
+          take: 1,
+        },
+        workspace: {
+          select: {
+            members: {
+              where: { userId },
+              select: { role: true },
+              take: 1,
+            },
+          },
+        },
+      },
+    });
+
+    if (!document) {
+      throw new NotFoundException('Document not found.');
+    }
+
+    if (document.deletedAt) {
+      throw new BadRequestException('Doküman zaten çöp kutusunda.');
+    }
+
+    const documentRole = document.members[0]?.role ?? null;
+    const workspaceRole = document.workspace.members[0]?.role ?? null;
+    const canDelete =
+      document.createdById === userId ||
+      documentRole === DocumentRole.OWNER ||
+      workspaceRole === WorkspaceRole.OWNER;
+
+    if (!canDelete) {
+      throw new ForbiddenException(
+        'You do not have permission to delete this document.',
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.document.update({
+        where: { id: documentId },
+        data: {
+          deletedAt: new Date(),
+          deletedById: userId,
+        },
+      });
+
+      await tx.activityLog.create({
+        data: {
+          workspaceId: document.workspaceId,
+          documentId: document.id,
+          actorId: userId,
+          type: ActivityType.DOCUMENT_UPDATED,
+          metadata: {
+            action: 'moved_to_trash',
+            title: document.title,
+          },
+        },
+      });
+    });
+
+    return { message: 'Doküman çöp kutusuna taşındı.' };
+  }
+
   async assertDocumentReadAccess(userId: string, documentId: string) {
     const document = await this.prisma.document.findUnique({
       where: { id: documentId },
-      select: { id: true, title: true },
+      select: { id: true, title: true, deletedAt: true },
     });
     if (!document) {
       throw new NotFoundException('Document not found.');
+    }
+    if (document.deletedAt) {
+      throw new GoneException('Bu doküman çöp kutusunda.');
     }
     const access = await this.getDocumentAccessContext(userId, documentId);
     if (!access || !access.permissions.canRead) {
@@ -830,6 +908,7 @@ export class DocumentsService {
       select: {
         id: true,
         workspaceId: true,
+        deletedAt: true,
         members: {
           where: { userId },
           select: { role: true },
@@ -848,6 +927,10 @@ export class DocumentsService {
     });
 
     if (!document) {
+      return null;
+    }
+
+    if (document.deletedAt) {
       return null;
     }
 
@@ -896,6 +979,7 @@ export class DocumentsService {
         where: {
           workspaceId,
           slug: candidate,
+          deletedAt: null,
         },
         select: {
           id: true,

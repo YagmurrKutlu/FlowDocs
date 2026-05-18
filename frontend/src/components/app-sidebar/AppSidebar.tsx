@@ -14,6 +14,7 @@ import { useMemo } from 'react';
 import { apiClient } from '../../shared/api/client';
 import type { WorkspaceListResponse } from '../../shared/api/contracts';
 import { useDocumentsListQuery } from '../../features/documents/hooks/useDocumentsQueries';
+import { useTrashSummaryQuery } from '../../features/trash/hooks/useTrashQueries';
 import { useAuthStore } from '../../store/auth.store';
 import { CollapseButton } from './CollapseButton';
 import { SidebarNavItem } from './SidebarNavItem';
@@ -44,7 +45,9 @@ function mapWorkspaceRole(role: string | undefined): string {
 export function AppSidebar({ collapsed, onToggleCollapse }: AppSidebarProps) {
   const user = useAuthStore((state) => state.user);
   const listQuery = useDocumentsListQuery();
+  const trashSummaryQuery = useTrashSummaryQuery();
   const documents = listQuery.data?.documents ?? [];
+  const trashBadge = trashSummaryQuery.data?.deletedDocumentCount ?? 0;
 
   const liveBadge = useMemo(
     () => documents.filter((d) => isLiveRecently(d.updatedAt, 72)).length,
@@ -134,6 +137,7 @@ export function AppSidebar({ collapsed, onToggleCollapse }: AppSidebarProps) {
                   label="Çöp Kutusu"
                   icon={IconTrash}
                   collapsed={collapsed}
+                  badge={trashBadge > 0 ? trashBadge : null}
                 />
               </Stack>
             </SidebarSection>

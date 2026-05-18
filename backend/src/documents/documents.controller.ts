@@ -300,6 +300,14 @@ export class DocumentsController {
     return new StreamableFile(result.buffer);
   }
 
+  @Delete(':id')
+  softDeleteDocument(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.documentsService.softDeleteDocument(user.id, id);
+  }
+
   @Get(':id')
   getDocumentById(
     @CurrentUser() user: AuthenticatedUser,

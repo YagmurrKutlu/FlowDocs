@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -100,11 +101,16 @@ export class DocumentStateRecoveryService {
         previewContent: true,
         editorStateJson: true,
         createdById: true,
+        deletedAt: true,
       },
     });
 
     if (!document) {
       throw new NotFoundException('Document not found.');
+    }
+
+    if (document.deletedAt) {
+      throw new BadRequestException('Bu doküman çöp kutusunda.');
     }
 
     const editorStateJsonText = this.editorStateJsonAsString(document.editorStateJson);

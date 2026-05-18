@@ -317,6 +317,7 @@ export class ProfileService {
   private async countAccessibleDocuments(userId: string): Promise<number> {
     return this.prisma.document.count({
       where: {
+        deletedAt: null,
         OR: [
           { createdById: userId },
           { members: { some: { userId } } },
@@ -344,6 +345,7 @@ export class ProfileService {
       where: {
         userId: { not: userId },
         document: {
+          deletedAt: null,
           members: { some: { userId } },
         },
       },
@@ -398,10 +400,24 @@ export class ProfileService {
       DOCUMENT_UPDATED: {
         icon: 'edit',
         color: '#F59E0B',
-        buildTitle: () =>
-          section
+        buildTitle: () => {
+          const action =
+            typeof metadata.action === 'string' ? metadata.action : undefined;
+          if (action === 'moved_to_trash') {
+            return `${documentTitle} çöp kutusuna taşındı`;
+          }
+          if (action === 'restored') {
+            return `${documentTitle} geri yüklendi`;
+          }
+          if (action === 'permanently_deleted') {
+            return documentTitle && documentTitle !== 'Doküman'
+              ? `${documentTitle} kalıcı olarak silindi`
+              : 'Bir doküman kalıcı olarak silindi';
+          }
+          return section
             ? `${documentTitle} dokümanını düzenledi — ${section}`
-            : `${documentTitle} dokümanını düzenledi`,
+            : `${documentTitle} dokümanını düzenledi`;
+        },
       },
       DOCUMENT_CREATED: {
         icon: 'create',
@@ -452,12 +468,17 @@ export class ProfileService {
     };
 
     const mapped = typeMap[log.type];
+    const action =
+      typeof metadata.action === 'string' ? metadata.action : undefined;
+    const hideDocumentLink =
+      action === 'moved_to_trash' || action === 'permanently_deleted';
+
     return {
       id: log.id,
       icon: mapped.icon,
       iconColor: mapped.color,
       title: mapped.buildTitle(),
-      documentId: log.document?.id ?? null,
+      documentId: hideDocumentLink ? null : (log.document?.id ?? null),
       documentTitle,
       timestamp: log.createdAt.toISOString(),
       timeLabel: this.formatRelativeTime(log.createdAt),
@@ -467,6 +488,7 @@ export class ProfileService {
   private async buildFallbackActivities(userId: string) {
     const documents = await this.prisma.document.findMany({
       where: {
+        deletedAt: null,
         OR: [
           { createdById: userId },
           { members: { some: { userId } } },
@@ -495,6 +517,7 @@ export class ProfileService {
   private async fetchRecentDocuments(userId: string) {
     const documents = await this.prisma.document.findMany({
       where: {
+        deletedAt: null,
         OR: [
           { createdById: userId },
           { members: { some: { userId } } },

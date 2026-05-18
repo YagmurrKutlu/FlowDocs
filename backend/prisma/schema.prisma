@@ -55,6 +55,7 @@ model User {
   profile                  UserProfile?
   sessions                 UserSession[]
   workspaceInvitesSent     WorkspaceInvite[] @relation("WorkspaceInviteInviter")
+  documentsDeleted         Document[]        @relation("DocumentDeleter")
 }
 
 model UserSession {
@@ -155,9 +156,12 @@ model Document {
   lastEditedById String?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
+  deletedAt      DateTime?
+  deletedById    String?
   workspace      Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   createdBy      User               @relation("DocumentCreator", fields: [createdById], references: [id], onDelete: Cascade)
   lastEditedBy   User?              @relation("DocumentLastEditor", fields: [lastEditedById], references: [id], onDelete: SetNull)
+  deletedBy      User?              @relation("DocumentDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
   members        DocumentMember[]
   snapshots      DocumentSnapshot[]
   updates        DocumentUpdate[]
@@ -170,6 +174,7 @@ model Document {
   @@index([workspaceId])
   @@index([createdById])
   @@index([lastEditedById])
+  @@index([deletedAt])
 }
 
 model DocumentMessage {

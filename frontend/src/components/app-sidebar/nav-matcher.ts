@@ -21,7 +21,7 @@ export function sidebarNavHref(key: SidebarNavKey): string {
     case 'documents-favorites':
       return '/documents?view=favorites';
     case 'documents-trash':
-      return '/documents?view=trash';
+      return '/trash';
     case 'team':
       return '/team';
     case 'settings':
@@ -50,7 +50,7 @@ export function isSidebarNavActive(
     case 'documents-favorites':
       return loc.pathname.startsWith('/documents') && view === 'favorites';
     case 'documents-trash':
-      return loc.pathname.startsWith('/documents') && view === 'trash';
+      return loc.pathname === '/trash';
     case 'settings':
       return loc.pathname === '/settings';
     case 'profile':
