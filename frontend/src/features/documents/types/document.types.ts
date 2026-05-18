@@ -1,15 +1,60 @@
+export type DocumentsView =
+  | 'all'
+  | 'owned'
+  | 'shared'
+  | 'recent'
+  | 'favorites';
+
+export type DocumentsSort = 'updated' | 'created' | 'title' | 'favorite';
+
+export type DocumentsRoleFilter = '' | 'OWNER' | 'EDITOR' | 'VIEWER';
+
+export interface DocumentsListParams {
+  search?: string;
+  workspaceId?: string;
+  role?: DocumentsRoleFilter;
+  sort?: DocumentsSort;
+  view?: DocumentsView;
+  skip?: number;
+  take?: number;
+}
+
+export interface DocumentListOwner {
+  id: string;
+  name: string;
+  email: string;
+}
+
 export interface DocumentListItem {
   id: string;
   title: string;
   slug: string;
   workspaceId: string;
+  workspaceName?: string;
+  previewContent?: unknown;
+  role?: string;
+  owner?: DocumentListOwner;
+  memberCount?: number;
   updatedAt: string;
+  createdAt?: string;
   currentVersion: number;
   isFavorite?: boolean;
+  isShared?: boolean;
+  canEdit?: boolean;
+  canShare?: boolean;
+  canDelete?: boolean;
 }
 
 export interface DocumentListResponse {
   documents: DocumentListItem[];
+}
+
+export interface DocumentsSummaryResponse {
+  totalDocuments: number;
+  ownedDocuments: number;
+  sharedDocuments: number;
+  favoriteDocuments: number;
+  recentlyUpdated: number;
 }
 
 export interface DocumentMemberUser {

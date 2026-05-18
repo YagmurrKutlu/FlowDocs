@@ -22,9 +22,11 @@ import { AddDocumentMemberDto } from './dto/add-document-member.dto';
 import { CreateDocumentCommentDto } from './dto/create-document-comment.dto';
 import { CreateDocumentMessageDto } from './dto/create-document-message.dto';
 import { DocumentMessagesService } from './document-messages.service';
+import { BulkDocumentsTrashDto } from './dto/bulk-documents-trash.dto';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { ListDocumentsQueryDto } from './dto/list-documents-query.dto';
 import { UpdateDocumentCommentDto } from './dto/update-document-comment.dto';
+import { UpdateDocumentDto } from './dto/update-document.dto';
 import { UpdateDocumentMemberDto } from './dto/update-document-member.dto';
 import { DocumentExportService } from './document-export.service';
 import { DocumentStateRecoveryService } from './document-state-recovery.service';
@@ -60,6 +62,19 @@ export class DocumentsController {
     @Query() query: ListDocumentsQueryDto,
   ) {
     return this.documentsService.listAccessibleDocuments(user.id, query);
+  }
+
+  @Get('summary')
+  getDocumentsSummary(@CurrentUser() user: AuthenticatedUser) {
+    return this.documentsService.getDocumentsSummary(user.id);
+  }
+
+  @Post('bulk-trash')
+  bulkMoveToTrash(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() payload: BulkDocumentsTrashDto,
+  ) {
+    return this.documentsService.bulkMoveToTrash(user.id, payload);
   }
 
   @Get(':id/state')
@@ -298,6 +313,15 @@ export class DocumentsController {
       'Content-Disposition': `attachment; filename="${encodeURIComponent(result.filename)}"`,
     });
     return new StreamableFile(result.buffer);
+  }
+
+  @Patch(':id')
+  updateDocument(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() payload: UpdateDocumentDto,
+  ) {
+    return this.documentsService.updateDocument(user.id, id, payload);
   }
 
   @Delete(':id')

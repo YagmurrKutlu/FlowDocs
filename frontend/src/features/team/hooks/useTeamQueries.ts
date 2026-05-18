@@ -12,6 +12,7 @@ import {
   removeWorkspaceMember,
   updateWorkspaceMemberRole,
 } from '../api/team.api';
+import { documentsQueryKeys } from '../../documents/hooks/useDocumentsQueries';
 import type {
   CreateWorkspaceInvitePayload,
   WorkspaceRole,
@@ -40,6 +41,7 @@ export function useCreateWorkspaceMutation(options?: {
         queryKey: teamQueryKeys.overview(),
       });
       void queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+      void queryClient.invalidateQueries({ queryKey: documentsQueryKeys.all });
       options?.onCreated?.(data.workspace.id);
     },
   });

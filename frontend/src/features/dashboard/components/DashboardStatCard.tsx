@@ -1,31 +1,34 @@
-import { Text } from '@mantine/core';
 import type { ReactNode } from 'react';
+import accentStyles from '../../../shared/styles/stat-card-accents.module.css';
 import styles from './DashboardStatCard.module.css';
 
-type Accent = 'blue' | 'green' | 'orange' | 'white';
+export type DashboardStatAccent = 'blue' | 'emerald' | 'orange' | 'purple';
 
-const accentClass: Record<Accent, string> = {
-  blue: styles.valueBlue,
-  green: styles.valueGreen,
-  orange: styles.valueOrange,
-  white: styles.valueWhite,
+const cardAccentClass: Record<DashboardStatAccent, string> = {
+  blue: accentStyles.statCardBlue,
+  emerald: accentStyles.statCardEmerald,
+  orange: accentStyles.statCardOrange,
+  purple: accentStyles.statCardPurple,
+};
+
+const valueAccentClass: Record<DashboardStatAccent, string> = {
+  blue: accentStyles.statValueBlue,
+  emerald: accentStyles.statValueEmerald,
+  orange: accentStyles.statValueOrange,
+  purple: accentStyles.statValuePurple,
 };
 
 type DashboardStatCardProps = {
   value: ReactNode;
   label: string;
-  accent: Accent;
+  accent: DashboardStatAccent;
 };
 
 export function DashboardStatCard({ value, label, accent }: DashboardStatCardProps) {
   return (
-    <div className={styles.card}>
-      <Text className={accentClass[accent]} component="div" fz={28} fw={700} lh={1.1}>
-        {value}
-      </Text>
-      <Text className={styles.label} mt={8} size="sm">
-        {label}
-      </Text>
+    <div className={`${accentStyles.statCard} ${cardAccentClass[accent]} ${styles.card}`}>
+      <p className={`${accentStyles.statValue} ${valueAccentClass[accent]}`}>{value}</p>
+      <p className={accentStyles.statLabel}>{label}</p>
     </div>
   );
 }

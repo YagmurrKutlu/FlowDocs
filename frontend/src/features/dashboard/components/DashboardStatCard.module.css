@@ -1,26 +1,5 @@
+/* Dashboard-specific stat card tweaks (accents in shared/styles/stat-card-accents.module.css) */
 .card {
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
   border-radius: 14px;
-  padding: 18px 20px;
-}
-
-.label {
-  color: var(--text-muted);
-}
-
-.valueBlue {
-  color: #60a5fa;
-}
-
-.valueGreen {
-  color: #4ade80;
-}
-
-.valueOrange {
-  color: #fb923c;
-}
-
-.valueWhite {
-  color: var(--text-primary);
+  min-height: auto;
 }

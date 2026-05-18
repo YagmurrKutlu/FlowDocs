@@ -4,6 +4,7 @@ import {
   createDocument,
   createDocumentComment,
   createDocumentMessage,
+  bulkMoveDocumentsToTrash,
   deleteDocument,
   deleteDocumentComment,
   deleteDocumentMessage,
@@ -12,6 +13,8 @@ import {
   fetchDocumentMessages,
   fetchDocumentMembers,
   fetchDocuments,
+  fetchDocumentsSummary,
+  updateDocument,
   removeDocumentMember,
   resolveDocumentComment,
   updateDocumentMemberRole,
@@ -24,6 +27,7 @@ import type {
   DocumentCommentsResponse,
   UpdateDocumentMemberPayload,
   UpdateDocumentCommentPayload,
+  DocumentsListParams,
 } from '../types/document.types';
 import {
   normalizeDocumentMessage,
@@ -33,18 +37,41 @@ import {
 
 export const documentsQueryKeys = {
   all: ['documents'] as const,
-  list: () => [...documentsQueryKeys.all, 'list'] as const,
+  summary: () => [...documentsQueryKeys.all, 'summary'] as const,
+  list: (filters?: DocumentsListParams) =>
+    filters
+      ? ([...documentsQueryKeys.all, 'list', filters] as const)
+      : ([...documentsQueryKeys.all, 'list'] as const),
   detail: (id: string) => [...documentsQueryKeys.all, 'detail', id] as const,
   members: (id: string) => [...documentsQueryKeys.all, 'members', id] as const,
   comments: (id: string) => [...documentsQueryKeys.all, 'comments', id] as const,
   messages: (id: string) => ['document-messages', id] as const,
 };
 
-export function useDocumentsListQuery() {
+export function useDocumentsSummaryQuery() {
   return useQuery({
-    queryKey: documentsQueryKeys.list(),
-    queryFn: fetchDocuments,
+    queryKey: documentsQueryKeys.summary(),
+    queryFn: fetchDocumentsSummary,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
+}
+
+export function useDocumentsListQuery(filters?: DocumentsListParams) {
+  return useQuery({
+    queryKey: documentsQueryKeys.list(filters),
+    queryFn: () => fetchDocuments(filters),
+  });
+}
+
+export function invalidateDocumentsRelated(
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
+  void queryClient.invalidateQueries({ queryKey: documentsQueryKeys.summary() });
+  void queryClient.invalidateQueries({ queryKey: ['documents', 'list'] });
+  void queryClient.invalidateQueries({ queryKey: documentsQueryKeys.all });
+  void queryClient.invalidateQueries({ queryKey: ['shared'] });
+  void queryClient.invalidateQueries({ queryKey: ['favorites'] });
 }
 
 export function useDocumentDetailQuery(documentId: string | undefined) {
@@ -61,7 +88,41 @@ export function useCreateDocumentMutation() {
   return useMutation({
     mutationFn: (payload: CreateDocumentPayload) => createDocument(payload),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: documentsQueryKeys.list() });
+      invalidateDocumentsRelated(queryClient);
+    },
+  });
+}
+
+export function useRenameDocumentMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      documentId,
+      title,
+    }: {
+      documentId: string;
+      title: string;
+    }) => updateDocument(documentId, { title }),
+    onSuccess: (_data, variables) => {
+      invalidateDocumentsRelated(queryClient);
+      void queryClient.invalidateQueries({
+        queryKey: documentsQueryKeys.detail(variables.documentId),
+      });
+    },
+  });
+}
+
+export function useBulkMoveToTrashMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (documentIds: string[]) => bulkMoveDocumentsToTrash(documentIds),
+    onSuccess: () => {
+      invalidateDocumentsRelated(queryClient);
+      void queryClient.invalidateQueries({ queryKey: ['trash'] });
+      void queryClient.invalidateQueries({ queryKey: ['team'] });
+      void queryClient.invalidateQueries({ queryKey: ['profile'] });
     },
   });
 }
@@ -72,7 +133,7 @@ export function useDeleteDocumentMutation() {
   return useMutation({
     mutationFn: (documentId: string) => deleteDocument(documentId),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: documentsQueryKeys.list() });
+      invalidateDocumentsRelated(queryClient);
       void queryClient.invalidateQueries({ queryKey: ['trash'] });
       void queryClient.invalidateQueries({ queryKey: ['team'] });
       void queryClient.invalidateQueries({ queryKey: ['profile'] });
@@ -101,7 +162,7 @@ export function useAddDocumentMemberMutation(documentId: string) {
       void queryClient.invalidateQueries({
         queryKey: documentsQueryKeys.detail(documentId),
       });
-      void queryClient.invalidateQueries({ queryKey: documentsQueryKeys.list() });
+      invalidateDocumentsRelated(queryClient);
     },
   });
 }
@@ -140,7 +201,7 @@ export function useRemoveDocumentMemberMutation(documentId: string) {
       void queryClient.invalidateQueries({
         queryKey: documentsQueryKeys.detail(documentId),
       });
-      void queryClient.invalidateQueries({ queryKey: documentsQueryKeys.list() });
+      invalidateDocumentsRelated(queryClient);
     },
   });
 }

@@ -117,7 +117,7 @@ export function AppSidebar({ collapsed, onToggleCollapse }: AppSidebarProps) {
               <Stack gap={4}>
                 <SidebarNavItem
                   navKey="dashboard"
-                  label="Dashboard"
+                  label="Anasayfa"
                   icon={IconHome}
                   collapsed={collapsed}
                   badge={liveBadge}

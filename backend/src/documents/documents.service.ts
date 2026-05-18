@@ -3,16 +3,24 @@ import {
   ConflictException,
   ForbiddenException,
   GoneException,
+  HttpException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ActivityType, DocumentRole, WorkspaceRole } from '@prisma/client';
+import {
+  ActivityType,
+  DocumentRole,
+  Prisma,
+  WorkspaceRole,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AddDocumentMemberDto } from './dto/add-document-member.dto';
 import { CreateDocumentCommentDto } from './dto/create-document-comment.dto';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { ListDocumentsQueryDto } from './dto/list-documents-query.dto';
 import { UpdateDocumentCommentDto } from './dto/update-document-comment.dto';
+import { BulkDocumentsTrashDto } from './dto/bulk-documents-trash.dto';
+import { UpdateDocumentDto } from './dto/update-document.dto';
 import { UpdateDocumentMemberDto } from './dto/update-document-member.dto';
 
 @Injectable()
@@ -79,64 +87,155 @@ export class DocumentsService {
     return { document };
   }
 
+  async getDocumentsSummary(userId: string) {
+    const accessibleWhere = this.buildAccessibleDocumentsWhere(userId);
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const [documents, favoriteDocuments] = await Promise.all([
+      this.prisma.document.findMany({
+        where: accessibleWhere,
+        select: {
+          id: true,
+          createdById: true,
+          updatedAt: true,
+          members: {
+            where: { userId },
+            select: { role: true },
+            take: 1,
+          },
+        },
+      }),
+      this.prisma.documentFavorite.count({
+        where: {
+          userId,
+          document: accessibleWhere,
+        },
+      }),
+    ]);
+
+    let ownedDocuments = 0;
+    let sharedDocuments = 0;
+    let recentlyUpdated = 0;
+
+    for (const doc of documents) {
+      const documentRole = doc.members[0]?.role ?? null;
+      if (this.isOwnedDocument(userId, doc.createdById, documentRole)) {
+        ownedDocuments += 1;
+      } else {
+        sharedDocuments += 1;
+      }
+
+      if (doc.updatedAt >= sevenDaysAgo) {
+        recentlyUpdated += 1;
+      }
+    }
+
+    return {
+      totalDocuments: documents.length,
+      ownedDocuments,
+      sharedDocuments,
+      favoriteDocuments,
+      recentlyUpdated,
+    };
+  }
+
   async listAccessibleDocuments(
     userId: string,
     query: ListDocumentsQueryDto,
   ) {
     const skip = query.skip ?? 0;
-    const take = query.take ?? 20;
+    const hasListFilters = Boolean(
+      query.search?.trim() ||
+        query.workspaceId ||
+        query.role ||
+        query.sort ||
+        query.view,
+    );
+    const take = query.take ?? (hasListFilters ? 500 : 20);
+
+    const documentWhere: Prisma.DocumentWhereInput = {
+      ...this.buildAccessibleDocumentsWhere(userId),
+    };
+
+    if (query.workspaceId) {
+      documentWhere.workspaceId = query.workspaceId;
+    }
+
+    if (query.search?.trim()) {
+      documentWhere.title = {
+        contains: query.search.trim(),
+        mode: 'insensitive',
+      };
+    }
 
     const documents = await this.prisma.document.findMany({
-      where: {
-        deletedAt: null,
-        OR: [
-          {
-            workspace: {
-              members: {
-                some: {
-                  userId,
-                  role: { in: [WorkspaceRole.OWNER, WorkspaceRole.ADMIN] },
-                },
-              },
-            },
-          },
-          {
-            members: {
-              some: { userId },
-            },
-          },
-        ],
-      },
-      orderBy: {
-        updatedAt: 'desc',
-      },
-      skip,
-      take,
+      where: documentWhere,
       select: {
         id: true,
         title: true,
         slug: true,
         workspaceId: true,
+        previewContent: true,
+        createdAt: true,
         updatedAt: true,
         currentVersion: true,
+        createdById: true,
+        workspace: {
+          select: {
+            name: true,
+            members: {
+              where: { userId },
+              select: { role: true },
+              take: 1,
+            },
+          },
+        },
+        createdBy: {
+          select: { id: true, fullName: true, email: true },
+        },
+        members: {
+          select: {
+            userId: true,
+            role: true,
+            user: { select: { id: true, fullName: true, email: true } },
+          },
+        },
+        _count: { select: { members: true } },
       },
     });
 
-    const favoriteRows = await this.prisma.documentFavorite.findMany({
-      where: {
-        userId,
-        documentId: { in: documents.map((d) => d.id) },
-      },
-      select: { documentId: true },
-    });
-    const favoriteIds = new Set(favoriteRows.map((f) => f.documentId));
+    const favoriteIds = await this.getFavoriteIds(
+      userId,
+      documents.map((doc) => doc.id),
+    );
 
-    return {
-      documents: documents.map((doc) => ({
-        ...doc,
-        isFavorite: favoriteIds.has(doc.id),
-      })),
-    };
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    let mapped = documents.map((doc) =>
+      this.mapAccessibleDocumentRow(userId, doc, favoriteIds),
+    );
+
+    if (query.view === 'owned') {
+      mapped = mapped.filter((doc) => !doc.isShared);
+    } else if (query.view === 'shared') {
+      mapped = mapped.filter((doc) => doc.isShared);
+    } else if (query.view === 'recent') {
+      mapped = mapped.filter(
+        (doc) => new Date(doc.updatedAt) >= sevenDaysAgo,
+      );
+    } else if (query.view === 'favorites') {
+      mapped = mapped.filter((doc) => doc.isFavorite);
+    }
+
+    if (query.role) {
+      mapped = mapped.filter((doc) => doc.role === query.role);
+    }
+
+    mapped = this.sortDocumentListItems(mapped, query.sort);
+
+    const page = mapped.slice(skip, skip + take);
+
+    return { documents: page };
   }
 
   async assertDocumentExportAccess(userId: string, documentId: string): Promise<string> {
@@ -214,6 +313,103 @@ export class DocumentsService {
     });
 
     return { message: 'Doküman çöp kutusuna taşındı.' };
+  }
+
+  async bulkMoveToTrash(userId: string, payload: BulkDocumentsTrashDto) {
+    let movedCount = 0;
+    let failedCount = 0;
+    const failures: Array<{ id: string; message: string }> = [];
+
+    for (const documentId of payload.documentIds) {
+      try {
+        await this.softDeleteDocument(userId, documentId);
+        movedCount += 1;
+      } catch (error) {
+        failedCount += 1;
+        failures.push({
+          id: documentId,
+          message: this.resolveErrorMessage(error),
+        });
+      }
+    }
+
+    return {
+      movedCount,
+      failedCount,
+      ...(failures.length > 0 ? { failures } : {}),
+    };
+  }
+
+  async updateDocument(
+    userId: string,
+    documentId: string,
+    payload: UpdateDocumentDto,
+  ) {
+    const document = await this.prisma.document.findUnique({
+      where: { id: documentId },
+      select: {
+        id: true,
+        title: true,
+        workspaceId: true,
+        deletedAt: true,
+      },
+    });
+
+    if (!document) {
+      throw new NotFoundException('Document not found.');
+    }
+
+    if (document.deletedAt) {
+      throw new GoneException('Bu doküman çöp kutusunda.');
+    }
+
+    const access = await this.getDocumentAccessContext(userId, documentId);
+    if (!access?.permissions.canEdit) {
+      throw new ForbiddenException(
+        'Bu dokümanın başlığını değiştirme yetkiniz yok.',
+      );
+    }
+
+    const normalizedTitle = payload.title.trim();
+    if (normalizedTitle.length < 2) {
+      throw new BadRequestException('Başlık en az 2 karakter olmalıdır.');
+    }
+
+    const slug = await this.generateUniqueSlug(
+      document.workspaceId,
+      normalizedTitle,
+    );
+
+    const updated = await this.prisma.document.update({
+      where: { id: documentId },
+      data: {
+        title: normalizedTitle,
+        slug,
+        lastEditedById: userId,
+      },
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        updatedAt: true,
+      },
+    });
+
+    await this.prisma.activityLog.create({
+      data: {
+        workspaceId: document.workspaceId,
+        documentId: document.id,
+        actorId: userId,
+        type: ActivityType.DOCUMENT_UPDATED,
+        metadata: {
+          action: 'title_renamed',
+          previousTitle: document.title,
+          title: normalizedTitle,
+        },
+      },
+    });
+
+    return { document: updated };
   }
 
   async assertDocumentReadAccess(userId: string, documentId: string) {
@@ -898,6 +1094,179 @@ export class DocumentsService {
     };
   }
 
+  private buildAccessibleDocumentsWhere(
+    userId: string,
+  ): Prisma.DocumentWhereInput {
+    return {
+      deletedAt: null,
+      OR: [
+        {
+          workspace: {
+            members: {
+              some: {
+                userId,
+                role: { in: [WorkspaceRole.OWNER, WorkspaceRole.ADMIN] },
+              },
+            },
+          },
+        },
+        {
+          members: {
+            some: { userId },
+          },
+        },
+      ],
+    };
+  }
+
+  private isOwnedDocument(
+    userId: string,
+    createdById: string,
+    documentRole: DocumentRole | null,
+  ): boolean {
+    return documentRole === DocumentRole.OWNER || createdById === userId;
+  }
+
+  private async getFavoriteIds(
+    userId: string,
+    documentIds: string[],
+  ): Promise<Set<string>> {
+    if (documentIds.length === 0) {
+      return new Set();
+    }
+
+    const rows = await this.prisma.documentFavorite.findMany({
+      where: {
+        userId,
+        documentId: { in: documentIds },
+      },
+      select: { documentId: true },
+    });
+
+    return new Set(rows.map((row) => row.documentId));
+  }
+
+  private mapAccessibleDocumentRow(
+    userId: string,
+    doc: {
+      id: string;
+      title: string;
+      slug: string;
+      workspaceId: string;
+      previewContent: unknown;
+      createdAt: Date;
+      updatedAt: Date;
+      currentVersion: number;
+      createdById: string;
+      workspace: {
+        name: string;
+        members: Array<{ role: WorkspaceRole }>;
+      };
+      createdBy: { id: string; fullName: string; email: string };
+      members: Array<{
+        userId: string;
+        role: DocumentRole;
+        user: { id: string; fullName: string; email: string };
+      }>;
+      _count: { members: number };
+    },
+    favoriteIds: Set<string>,
+  ) {
+    const membership = doc.members.find((member) => member.userId === userId);
+    const documentRole = membership?.role ?? null;
+    const workspaceRole = doc.workspace.members[0]?.role ?? null;
+    const isWorkspaceAdmin =
+      workspaceRole === WorkspaceRole.OWNER ||
+      workspaceRole === WorkspaceRole.ADMIN;
+    const isOwned = this.isOwnedDocument(userId, doc.createdById, documentRole);
+    const role = documentRole ?? (isWorkspaceAdmin ? DocumentRole.OWNER : null);
+
+    const ownerMember = doc.members.find(
+      (member) => member.role === DocumentRole.OWNER,
+    );
+    const owner = ownerMember
+      ? {
+          id: ownerMember.user.id,
+          name: ownerMember.user.fullName?.trim() || 'Bilinmiyor',
+          email: ownerMember.user.email,
+        }
+      : {
+          id: doc.createdBy.id,
+          name: doc.createdBy.fullName?.trim() || 'Bilinmiyor',
+          email: doc.createdBy.email,
+        };
+
+    const canEdit =
+      documentRole === DocumentRole.OWNER ||
+      documentRole === DocumentRole.EDITOR ||
+      isWorkspaceAdmin;
+    const canShare = documentRole === DocumentRole.OWNER || isWorkspaceAdmin;
+    const canDelete =
+      doc.createdById === userId ||
+      documentRole === DocumentRole.OWNER ||
+      workspaceRole === WorkspaceRole.OWNER;
+
+    return {
+      id: doc.id,
+      title: doc.title,
+      slug: doc.slug,
+      workspaceId: doc.workspaceId,
+      workspaceName: doc.workspace.name,
+      previewContent: doc.previewContent,
+      role: role ?? DocumentRole.VIEWER,
+      owner,
+      memberCount: doc._count.members,
+      updatedAt: doc.updatedAt.toISOString(),
+      createdAt: doc.createdAt.toISOString(),
+      currentVersion: doc.currentVersion,
+      isFavorite: favoriteIds.has(doc.id),
+      isShared: !isOwned,
+      canEdit,
+      canShare,
+      canDelete,
+    };
+  }
+
+  private sortDocumentListItems<
+    T extends { title: string; updatedAt: string; createdAt: string; isFavorite: boolean },
+  >(
+    items: T[],
+    sort: ListDocumentsQueryDto['sort'],
+  ): T[] {
+    const sorted = [...items];
+
+    switch (sort) {
+      case 'created':
+        sorted.sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+        break;
+      case 'title':
+        sorted.sort((a, b) => a.title.localeCompare(b.title, 'tr'));
+        break;
+      case 'favorite':
+        sorted.sort((a, b) => {
+          if (a.isFavorite !== b.isFavorite) {
+            return a.isFavorite ? -1 : 1;
+          }
+          return (
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+          );
+        });
+        break;
+      case 'updated':
+      default:
+        sorted.sort(
+          (a, b) =>
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+        );
+        break;
+    }
+
+    return sorted;
+  }
+
   private async assertWorkspaceAccess(userId: string, workspaceId: string) {
     const membership = await this.prisma.workspaceMember.findUnique({
       where: {
@@ -968,6 +1337,27 @@ export class DocumentsService {
         canShare,
       },
     };
+  }
+
+  private resolveErrorMessage(error: unknown): string {
+    if (error instanceof HttpException) {
+      const response = error.getResponse();
+      if (typeof response === 'string') {
+        return response;
+      }
+      if (
+        typeof response === 'object' &&
+        response !== null &&
+        'message' in response
+      ) {
+        const message = (response as { message: string | string[] }).message;
+        return Array.isArray(message) ? message.join(', ') : message;
+      }
+    }
+    if (error instanceof Error && error.message) {
+      return error.message;
+    }
+    return 'İşlem başarısız.';
   }
 
   private slugifyTitle(title: string) {

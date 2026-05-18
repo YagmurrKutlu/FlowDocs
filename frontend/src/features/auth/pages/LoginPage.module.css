@@ -1,0 +1,206 @@
+.page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px 20px;
+  box-sizing: border-box;
+  background: #0b0a14;
+  background-image:
+    radial-gradient(ellipse 85% 55% at 50% -8%, rgba(91, 140, 255, 0.16), transparent 58%),
+    radial-gradient(ellipse 55% 45% at 100% 100%, rgba(124, 58, 237, 0.12), transparent 55%),
+    radial-gradient(ellipse 45% 40% at 0% 85%, rgba(59, 130, 246, 0.09), transparent 50%);
+}
+
+.card {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  padding: 36px 36px 32px;
+  background: #1a1530;
+  border: 1px solid rgba(139, 133, 212, 0.18);
+  border-radius: 28px;
+  box-shadow:
+    0 0 0 1px rgba(91, 140, 255, 0.08),
+    0 20px 48px rgba(0, 0, 0, 0.38),
+    0 8px 28px rgba(91, 140, 255, 0.08);
+  overflow: hidden;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #5b8cff, #8b85d4);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.logoBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 22px;
+  padding: 8px 14px 8px 10px;
+  border-radius: 999px;
+  background: rgba(91, 140, 255, 0.1);
+  border: 1px solid rgba(139, 133, 212, 0.2);
+  box-shadow: 0 0 20px rgba(91, 140, 255, 0.08);
+}
+
+.logoMark {
+  display: block;
+  width: 24px;
+  height: 24px;
+}
+
+.logoText {
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #f8fafc;
+}
+
+.title {
+  margin: 0 0 8px;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #f8fafc;
+  line-height: 1.2;
+}
+
+.subtitle {
+  margin: 0 0 28px;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: rgba(203, 213, 225, 0.72);
+  max-width: 42ch;
+}
+
+.formStack {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.fieldLabel {
+  margin-bottom: 6px !important;
+  font-size: 0.8125rem !important;
+  font-weight: 600 !important;
+  color: rgba(226, 232, 240, 0.88) !important;
+}
+
+.fieldInput {
+  background: rgba(15, 12, 28, 0.72) !important;
+  border: 1px solid rgba(139, 133, 212, 0.24) !important;
+  border-radius: 12px !important;
+  color: #f8fafc !important;
+  min-height: 44px !important;
+  font-size: 0.9375rem !important;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease !important;
+}
+
+.fieldInput::placeholder {
+  color: rgba(148, 163, 184, 0.72) !important;
+}
+
+.fieldInput:focus,
+.fieldInput:focus-within {
+  border-color: rgba(96, 165, 250, 0.55) !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14) !important;
+  background: rgba(15, 12, 28, 0.9) !important;
+}
+
+.fieldError {
+  margin-top: 6px !important;
+  font-size: 0.78rem !important;
+}
+
+.visibilityToggle {
+  color: rgba(203, 213, 225, 0.5) !important;
+  opacity: 1;
+  transition:
+    color 160ms ease,
+    background 160ms ease !important;
+}
+
+.visibilityToggle:hover {
+  color: rgba(219, 234, 254, 0.95) !important;
+  background: rgba(91, 140, 255, 0.14) !important;
+}
+
+.submitBtn {
+  margin-top: 4px;
+  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%) !important;
+  border: none !important;
+  border-radius: 12px !important;
+  font-weight: 600 !important;
+  font-size: 0.9375rem !important;
+  min-height: 44px !important;
+  color: #fff !important;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.12) inset,
+    0 8px 22px rgba(37, 99, 235, 0.28) !important;
+  transition:
+    filter 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease !important;
+}
+
+.submitBtn:hover:not(:disabled) {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.12) inset,
+    0 12px 28px rgba(59, 130, 246, 0.38) !important;
+}
+
+.submitBtn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.footer {
+  margin: 22px 0 0;
+  text-align: center;
+  font-size: 0.875rem;
+  color: rgba(203, 213, 225, 0.68);
+  line-height: 1.5;
+}
+
+.registerLink {
+  color: #93c5fd;
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    color 160ms ease,
+    text-shadow 160ms ease;
+}
+
+.registerLink:hover {
+  color: #bfdbfe;
+  text-decoration: underline;
+  text-shadow: 0 0 14px rgba(59, 130, 246, 0.35);
+}
+
+@media (max-width: 560px) {
+  .card {
+    padding: 28px 22px 24px;
+    border-radius: 22px;
+  }
+
+  .title {
+    font-size: 1.5rem;
+  }
+
+  .subtitle {
+    margin-bottom: 22px;
+    font-size: 0.875rem;
+  }
+}

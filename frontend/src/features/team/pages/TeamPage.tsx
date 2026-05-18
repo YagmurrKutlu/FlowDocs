@@ -14,11 +14,11 @@ import { TeamHero } from '../components/TeamHero';
 import { TeamMembersCard } from '../components/TeamMembersCard';
 import { TeamStatsGrid } from '../components/TeamStatsGrid';
 import { WorkspaceSwitcher } from '../components/WorkspaceSwitcher';
+import { useCreateWorkspaceModal } from '../hooks/useCreateWorkspaceModal';
 import {
   useAcceptInviteDemoMutation,
   useCancelInviteMutation,
   useCreateInviteMutation,
-  useCreateWorkspaceMutation,
   useRemoveMemberMutation,
   useTeamActivityQuery,
   useTeamDocumentsQuery,
@@ -38,7 +38,6 @@ export function TeamPage() {
     null,
   );
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [createWorkspaceOpen, setCreateWorkspaceOpen] = useState(false);
   const [roleUpdatingId, setRoleUpdatingId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
@@ -66,7 +65,7 @@ export function TeamPage() {
   const invitesQuery = useTeamInvitesQuery(selectedWorkspaceId, isOwner);
   const activityQuery = useTeamActivityQuery(selectedWorkspaceId);
 
-  const createWorkspace = useCreateWorkspaceMutation({
+  const createWorkspaceModal = useCreateWorkspaceModal({
     onCreated: (workspaceId) => setSelectedWorkspaceId(workspaceId),
   });
   const createInvite = useCreateInviteMutation(selectedWorkspaceId);
@@ -74,27 +73,6 @@ export function TeamPage() {
   const acceptInviteDemo = useAcceptInviteDemoMutation(selectedWorkspaceId);
   const updateRole = useUpdateMemberRoleMutation(selectedWorkspaceId);
   const removeMember = useRemoveMemberMutation(selectedWorkspaceId);
-
-  const handleCreateWorkspace = async (name: string) => {
-    try {
-      await createWorkspace.mutateAsync(name);
-      notifications.show({
-        message: 'Çalışma alanı oluşturuldu.',
-        color: 'green',
-      });
-      setCreateWorkspaceOpen(false);
-    } catch (error) {
-      const message = getApiErrorMessage(error);
-      notifications.show({
-        title: 'Çalışma alanı oluşturulamadı',
-        message:
-          message !== 'Something went wrong. Please try again.'
-            ? message
-            : 'Çalışma alanı oluşturulamadı.',
-        color: 'red',
-      });
-    }
-  };
 
   const handleInvite = async (payload: { email: string; role: 'EDITOR' | 'VIEWER' }) => {
     try {
@@ -209,7 +187,7 @@ export function TeamPage() {
       <TeamHero
         canInvite={isOwner && Boolean(selectedWorkspaceId)}
         onInvite={() => setInviteOpen(true)}
-        onNewWorkspace={() => setCreateWorkspaceOpen(true)}
+        onNewWorkspace={createWorkspaceModal.open}
       />
 
       <TeamStatsGrid
@@ -284,10 +262,10 @@ export function TeamPage() {
       />
 
       <CreateWorkspaceModal
-        opened={createWorkspaceOpen}
-        loading={createWorkspace.isPending}
-        onClose={() => setCreateWorkspaceOpen(false)}
-        onSubmit={handleCreateWorkspace}
+        opened={createWorkspaceModal.opened}
+        loading={createWorkspaceModal.isPending}
+        onClose={createWorkspaceModal.close}
+        onSubmit={createWorkspaceModal.handleSubmit}
       />
     </main>
   );

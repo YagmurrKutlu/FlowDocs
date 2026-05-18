@@ -1,4 +1,5 @@
 import { Button, Modal, Skeleton, Text } from '@mantine/core';
+import { useNavigate } from 'react-router-dom';
 import { notifications } from '@mantine/notifications';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -10,6 +11,7 @@ import {
   IconInfoCircle,
   IconKeyboard,
   IconPencil,
+  IconLogout,
   IconUsers,
 } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -44,6 +46,7 @@ import {
   requestBrowserNotificationPermission,
 } from '../utils/browserNotifications';
 import { clearFlowDocsLocalCache } from '../utils/clearLocalCache';
+import { logoutCurrentDevice } from '../../../shared/auth/logout';
 import premium from '../../../shared/styles/premiumCard.module.css';
 import styles from './SettingsPage.module.css';
 
@@ -208,6 +211,7 @@ function useSettingsUpdater(
 }
 
 export function SettingsPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data, isLoading, isError, refetch } = useSettingsQuery();
   const update = useUpdateSettingsMutation();
@@ -216,6 +220,7 @@ export function SettingsPage() {
   const [activeSection, setActiveSection] = useState<SettingsSectionId>('editor');
   const [cacheModalOpen, setCacheModalOpen] = useState(false);
   const [cacheClearing, setCacheClearing] = useState(false);
+  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
 
   const patchAccessibility = useCallback(
     (partial: Partial<AccessibilityPreferences>) => {
@@ -256,6 +261,12 @@ export function SettingsPage() {
     },
     [patch],
   );
+
+  const handleConfirmLogout = useCallback(() => {
+    logoutCurrentDevice();
+    setLogoutModalOpen(false);
+    navigate('/login', { replace: true });
+  }, [navigate]);
 
   const handleConfirmClearCache = useCallback(async () => {
     setCacheClearing(true);
@@ -893,6 +904,20 @@ export function SettingsPage() {
                 </Button>
               </SettingRow>
               <SettingRow
+                title="Çıkış yap"
+                description="Bu cihazdaki oturumunuzu kapatır ve giriş ekranına yönlendirir."
+              >
+                <Button
+                  className={styles.logoutBtn}
+                  variant="outline"
+                  size="sm"
+                  leftSection={<IconLogout size={16} />}
+                  onClick={() => setLogoutModalOpen(true)}
+                >
+                  Çıkış Yap
+                </Button>
+              </SettingRow>
+              <SettingRow
                 title="Hesabı sil"
                 description="Demo sürümünde kapalı — kalıcı hesap silme yapılmaz."
               >
@@ -904,6 +929,25 @@ export function SettingsPage() {
           </div>
         </div>
       </div>
+
+      <Modal
+        opened={logoutModalOpen}
+        onClose={() => setLogoutModalOpen(false)}
+        title="Çıkış yapılsın mı?"
+        centered
+      >
+        <Text size="sm" c="dimmed" mb="lg">
+          Bu cihazdaki oturumunuz kapatılacak.
+        </Text>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <Button variant="default" onClick={() => setLogoutModalOpen(false)}>
+            İptal
+          </Button>
+          <Button className={styles.logoutBtn} onClick={handleConfirmLogout}>
+            Çıkış Yap
+          </Button>
+        </div>
+      </Modal>
 
       <Modal
         opened={cacheModalOpen}

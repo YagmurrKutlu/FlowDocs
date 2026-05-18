@@ -21,7 +21,8 @@ function invalidateFavoriteRelated(queryClient: ReturnType<typeof useQueryClient
   void queryClient.invalidateQueries({ queryKey: favoritesQueryKeys.summary() });
   void queryClient.invalidateQueries({ queryKey: ['favorites', 'list'] });
   void queryClient.invalidateQueries({ queryKey: ['shared'] });
-  void queryClient.invalidateQueries({ queryKey: documentsQueryKeys.list() });
+  void queryClient.invalidateQueries({ queryKey: documentsQueryKeys.summary() });
+  void queryClient.invalidateQueries({ queryKey: ['documents', 'list'] });
   void queryClient.invalidateQueries({ queryKey: documentsQueryKeys.all });
 }
 

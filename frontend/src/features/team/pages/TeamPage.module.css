@@ -21,51 +21,7 @@
   box-sizing: border-box;
 }
 
-/* Hero */
-.hero {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 24px;
-  width: 100%;
-  min-height: 150px;
-  height: auto;
-  margin: 0;
-  padding: 22px 24px;
-  position: relative;
-  flex-shrink: 0;
-  background: var(--surface-bg);
-  border: 1px solid rgba(139, 133, 212, 0.18);
-  border-radius: 14px;
-  box-shadow:
-    0 0 0 1px rgba(91, 140, 255, 0.08),
-    0 12px 32px rgba(0, 0, 0, 0.28);
-}
-
-.heroTitle {
-  margin: 0 0 6px;
-  font-size: 1.5rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--text-primary);
-}
-
-.heroDescription {
-  margin: 0;
-  max-width: 52ch;
-  color: var(--text-muted);
-  font-size: 0.875rem;
-  line-height: 1.5;
-}
-
-.heroActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  flex-shrink: 0;
-}
-
+/* Hero actions — surface/layout in shared/styles/premium-hero.module.css */
 .heroPrimaryBtn {
   background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%) !important;
   border: none !important;
@@ -116,55 +72,7 @@
   flex-shrink: 0;
 }
 
-.statCard {
-  position: relative;
-  min-height: 118px;
-  height: auto;
-  margin: 0;
-  transform: none;
-  overflow: hidden;
-  background: var(--card-bg);
-  border: 1px solid rgba(139, 133, 212, 0.18);
-  border-radius: 14px;
-  padding: 18px 20px;
-  box-shadow:
-    0 0 0 1px rgba(91, 140, 255, 0.06),
-    0 12px 28px rgba(0, 0, 0, 0.22);
-  transition:
-    transform 160ms ease,
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    background 160ms ease;
-}
-
-.statValue {
-  margin: 0;
-  font-size: 1.75rem;
-  font-weight: 700;
-  line-height: 1.1;
-}
-
-.statLabel {
-  margin: 8px 0 0;
-  font-size: 0.875rem;
-  color: var(--text-muted);
-}
-
-.statBlue {
-  color: #5b8cff;
-}
-
-.statGreen {
-  color: #34d399;
-}
-
-.statOrange {
-  color: #f59e0b;
-}
-
-.statMuted {
-  color: #8b85d4;
-}
+/* Stat card accents — shared/styles/stat-card-accents.module.css */
 
 /* Two-column content */
 .contentGrid {
@@ -383,8 +291,7 @@
 /* Premium hover — pointer devices only; no layout reflow */
 @media (hover: hover) and (pointer: fine) {
   .card:hover,
-  .teamCard:hover,
-  .statCard:hover {
+  .teamCard:hover {
     transform: translateY(-3px);
     border-color: rgba(91, 140, 255, 0.45);
     box-shadow:
@@ -604,29 +511,25 @@
   }
 }
 
+@media (max-width: 1200px) {
+  .heroPrimaryBtn {
+    flex: 1;
+    min-width: 140px;
+  }
+}
+
 @media (max-width: 700px) {
   .page {
     padding: 24px 16px 56px;
     gap: 20px;
   }
 
-  .hero {
-    flex-direction: column;
-    align-items: flex-start;
-    min-height: unset;
-  }
-
   .statsGrid {
     grid-template-columns: 1fr;
   }
 
-  .heroActions {
-    width: 100%;
-  }
-
   .card:hover,
   .teamCard:hover,
-  .statCard:hover,
   .workspaceCard:hover,
   .workspaceCardActive:hover,
   .pendingInvitesCard:hover {

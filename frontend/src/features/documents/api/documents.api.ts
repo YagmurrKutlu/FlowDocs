@@ -19,6 +19,8 @@ import type {
   DocumentDetailResponse,
   DocumentMessagesResponse,
   DocumentListResponse,
+  DocumentsListParams,
+  DocumentsSummaryResponse,
   DocumentMembersResponse,
   DocumentStateResponse,
   ResolveDocumentCommentResponse,
@@ -29,8 +31,50 @@ import type {
   UpdateDocumentCommentResponse,
 } from '../types/document.types';
 
-export async function fetchDocuments(): Promise<DocumentListResponse> {
-  const { data } = await apiClient.get<DocumentListResponse>('/documents');
+export async function fetchDocuments(
+  params?: DocumentsListParams,
+): Promise<DocumentListResponse> {
+  const { data } = await apiClient.get<DocumentListResponse>('/documents', {
+    params: params
+      ? {
+          ...params,
+          role: params.role || undefined,
+        }
+      : undefined,
+  });
+  return data;
+}
+
+export async function fetchDocumentsSummary(): Promise<DocumentsSummaryResponse> {
+  const { data } = await apiClient.get<DocumentsSummaryResponse>(
+    '/documents/summary',
+  );
+  return data;
+}
+
+export async function updateDocument(
+  documentId: string,
+  payload: { title: string },
+): Promise<{ document: { id: string; title: string; slug: string; updatedAt: string } }> {
+  const { data } = await apiClient.patch<{
+    document: { id: string; title: string; slug: string; updatedAt: string };
+  }>(`/documents/${documentId}`, payload);
+  return data;
+}
+
+export type BulkMoveToTrashResponse = {
+  movedCount: number;
+  failedCount: number;
+  failures?: Array<{ id: string; message: string }>;
+};
+
+export async function bulkMoveDocumentsToTrash(
+  documentIds: string[],
+): Promise<BulkMoveToTrashResponse> {
+  const { data } = await apiClient.post<BulkMoveToTrashResponse>(
+    '/documents/bulk-trash',
+    { documentIds },
+  );
   return data;
 }
 

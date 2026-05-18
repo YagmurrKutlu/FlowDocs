@@ -1,4 +1,5 @@
 import { Skeleton } from '@mantine/core';
+import accentStyles from '../../../shared/styles/stat-card-accents.module.css';
 import styles from '../pages/TeamPage.module.css';
 
 type TeamStatsGridProps = {
@@ -10,11 +11,31 @@ type TeamStatsGridProps = {
 };
 
 const STATS = [
-  { key: 'workspaces', label: 'Çalışma Alanı', accent: styles.statBlue },
-  { key: 'members', label: 'Toplam Üye', accent: styles.statGreen },
-  { key: 'documents', label: 'Doküman', accent: styles.statOrange },
-  { key: 'collab', label: 'Aktif İşbirlikçi', accent: styles.statMuted },
-] as const;
+  {
+    key: 'workspaces' as const,
+    label: 'Çalışma Alanı',
+    cardClass: accentStyles.statCardBlue,
+    valueClass: accentStyles.statValueBlue,
+  },
+  {
+    key: 'members' as const,
+    label: 'Toplam Üye',
+    cardClass: accentStyles.statCardEmerald,
+    valueClass: accentStyles.statValueEmerald,
+  },
+  {
+    key: 'documents' as const,
+    label: 'Doküman',
+    cardClass: accentStyles.statCardOrange,
+    valueClass: accentStyles.statValueOrange,
+  },
+  {
+    key: 'collab' as const,
+    label: 'Aktif İşbirlikçi',
+    cardClass: accentStyles.statCardPurple,
+    valueClass: accentStyles.statValuePurple,
+  },
+];
 
 export function TeamStatsGrid({
   loading,
@@ -34,7 +55,7 @@ export function TeamStatsGrid({
     return (
       <section className={styles.statsGrid} aria-label="Ekip istatistikleri">
         {[0, 1, 2, 3].map((i) => (
-          <Skeleton key={i} height={118} radius={14} />
+          <Skeleton key={i} height={118} radius={20} />
         ))}
       </section>
     );
@@ -43,11 +64,14 @@ export function TeamStatsGrid({
   return (
     <section className={styles.statsGrid} aria-label="Ekip istatistikleri">
       {STATS.map((stat) => (
-        <div key={stat.key} className={styles.statCard}>
-          <p className={`${styles.statValue} ${stat.accent}`}>
+        <div
+          key={stat.key}
+          className={`${accentStyles.statCard} ${stat.cardClass}`}
+        >
+          <p className={`${accentStyles.statValue} ${stat.valueClass}`}>
             {values[stat.key]}
           </p>
-          <p className={styles.statLabel}>{stat.label}</p>
+          <p className={accentStyles.statLabel}>{stat.label}</p>
         </div>
       ))}
     </section>

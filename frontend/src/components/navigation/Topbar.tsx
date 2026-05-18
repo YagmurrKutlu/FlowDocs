@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 
 const pageTitles: Record<string, { title: string; subtitle: string }> = {
   '/dashboard': {
-    title: 'Dashboard',
+    title: 'Anasayfa',
     subtitle: 'Tüm dokümanlarınız',
   },
   '/documents': {

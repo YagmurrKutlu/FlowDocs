@@ -2,10 +2,7 @@ import {
   Anchor,
   Button,
   PasswordInput,
-  Stack,
-  Text,
   TextInput,
-  Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useMutation } from '@tanstack/react-query';
@@ -13,23 +10,36 @@ import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { AppCard } from '../../../components/ui/AppCard';
 import { apiClient } from '../../../shared/api/client';
 import type { AuthResponse } from '../../../shared/api/contracts';
 import { getApiErrorMessage } from '../../../shared/api/errors';
 import { useAuthStore } from '../../../store/auth.store';
+import styles from './LoginPage.module.css';
 
-const registerSchema = z.object({
-  fullName: z.string().trim().min(2, 'Full name must be at least 2 characters.'),
-  email: z.string().trim().email('Enter a valid email address.'),
-  password: z.string().min(8, 'Password must be at least 8 characters.'),
-  confirmPassword: z.string().min(8, 'Confirm your password.'),
-}).refine((values) => values.password === values.confirmPassword, {
-  path: ['confirmPassword'],
-  message: 'Passwords do not match.',
-});
+const registerSchema = z
+  .object({
+    fullName: z.string().trim().min(2, 'Ad soyad en az 2 karakter olmalıdır.'),
+    email: z.string().trim().email('Geçerli bir e-posta adresi girin.'),
+    password: z.string().min(8, 'Şifre en az 8 karakter olmalıdır.'),
+    confirmPassword: z.string().min(8, 'Şifrenizi tekrar girin.'),
+  })
+  .refine((values) => values.password === values.confirmPassword, {
+    path: ['confirmPassword'],
+    message: 'Şifreler eşleşmiyor.',
+  });
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
+
+const fieldClassNames = {
+  label: styles.fieldLabel,
+  input: styles.fieldInput,
+  error: styles.fieldError,
+};
+
+const passwordClassNames = {
+  ...fieldClassNames,
+  visibilityToggle: styles.visibilityToggle,
+};
 
 export function RegisterPage() {
   const navigate = useNavigate();
@@ -60,15 +70,15 @@ export function RegisterPage() {
       });
       notifications.show({
         color: 'teal',
-        title: 'Account created',
-        message: `Welcome to FlowDocs, ${data.user.fullName}.`,
+        title: 'Hesap oluşturuldu',
+        message: `FlowDocs'a hoş geldiniz, ${data.user.fullName}.`,
       });
       navigate('/dashboard', { replace: true });
     },
     onError: (error) => {
       notifications.show({
         color: 'red',
-        title: 'Registration failed',
+        title: 'Kayıt başarısız',
         message: getApiErrorMessage(error),
       });
     },
@@ -79,60 +89,77 @@ export function RegisterPage() {
   });
 
   return (
-    <Stack align="center" justify="center" mih="100vh" p="lg">
-      <AppCard w={420} p="xl" radius="lg">
-        <Stack>
-          <Title order={2}>Create your account</Title>
-          <Text c="dimmed">Set up your workspace and invite your team.</Text>
+    <div className={styles.page}>
+      <div className={styles.card}>
+        <div className={styles.logoBadge}>
+          <img
+            src={`${import.meta.env.BASE_URL}flowdocs_icon.svg`}
+            alt=""
+            width={24}
+            height={24}
+            className={styles.logoMark}
+            decoding="async"
+          />
+          <span className={styles.logoText}>FlowDocs</span>
+        </div>
 
-          <form onSubmit={onSubmit}>
-            <Stack>
-              <TextInput
-                label="Full name"
-                placeholder="Jane Doe"
-                {...form.register('fullName')}
-                error={form.formState.errors.fullName?.message}
-              />
+        <h1 className={styles.title}>Hesabınızı oluşturun</h1>
+        <p className={styles.subtitle}>
+          Çalışma alanınızı oluşturun ve ekibinizi davet edin.
+        </p>
 
-              <TextInput
-                label="Email"
-                placeholder="team@flowdocs.app"
-                {...form.register('email')}
-                error={form.formState.errors.email?.message}
-              />
+        <form onSubmit={onSubmit}>
+          <div className={styles.formStack}>
+            <TextInput
+              label="Ad Soyad"
+              placeholder="Ad Soyad"
+              classNames={fieldClassNames}
+              {...form.register('fullName')}
+              error={form.formState.errors.fullName?.message}
+            />
 
-              <PasswordInput
-                label="Password"
-                placeholder="********"
-                {...form.register('password')}
-                error={form.formState.errors.password?.message}
-              />
+            <TextInput
+              label="E-posta"
+              placeholder="ornek@flowdocs.app"
+              classNames={fieldClassNames}
+              {...form.register('email')}
+              error={form.formState.errors.email?.message}
+            />
 
-              <PasswordInput
-                label="Confirm password"
-                placeholder="********"
-                {...form.register('confirmPassword')}
-                error={form.formState.errors.confirmPassword?.message}
-              />
+            <PasswordInput
+              label="Şifre"
+              placeholder="••••••••"
+              classNames={passwordClassNames}
+              {...form.register('password')}
+              error={form.formState.errors.password?.message}
+            />
 
-              <Button
-                fullWidth
-                type="submit"
-                loading={registerMutation.isPending}
-              >
-                Create account
-              </Button>
-            </Stack>
-          </form>
+            <PasswordInput
+              label="Şifre Tekrar"
+              placeholder="••••••••"
+              classNames={passwordClassNames}
+              {...form.register('confirmPassword')}
+              error={form.formState.errors.confirmPassword?.message}
+            />
 
-          <Text size="sm" c="dimmed">
-            Already registered?{' '}
-            <Anchor component={Link} to="/login">
-              Sign in
-            </Anchor>
-          </Text>
-        </Stack>
-      </AppCard>
-    </Stack>
+            <Button
+              className={styles.submitBtn}
+              fullWidth
+              type="submit"
+              loading={registerMutation.isPending}
+            >
+              Hesap Oluştur
+            </Button>
+          </div>
+        </form>
+
+        <p className={styles.footer}>
+          Zaten hesabınız var mı?{' '}
+          <Anchor component={Link} to="/login" className={styles.registerLink}>
+            Giriş Yap
+          </Anchor>
+        </p>
+      </div>
+    </div>
   );
 }

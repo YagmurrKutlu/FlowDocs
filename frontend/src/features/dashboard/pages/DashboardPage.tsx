@@ -12,7 +12,6 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
-import { IconSearch } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { useDisclosure } from '@mantine/hooks';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -32,8 +31,11 @@ import { getApiErrorMessage } from '../../../shared/api/errors';
 import { useAuthStore } from '../../../store/auth.store';
 import { DashboardDocumentCard } from '../components/DashboardDocumentCard';
 import { DashboardNewDocumentCard } from '../components/DashboardNewDocumentCard';
+import { DashboardHero } from '../components/DashboardHero';
 import { DashboardStatCard } from '../components/DashboardStatCard';
 import { ManageWorkspaceMembersModal } from '../components/ManageWorkspaceMembersModal';
+import { CreateWorkspaceModal } from '../../team/components/CreateWorkspaceModal';
+import { useCreateWorkspaceModal } from '../../team/hooks/useCreateWorkspaceModal';
 import pageStyles from './DashboardPage.module.css';
 
 const createWorkspaceSchema = z.object({
@@ -71,6 +73,7 @@ export function DashboardPage() {
   const [search, setSearch] = useState('');
   const [opened, { open, close }] = useDisclosure(false);
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
+  const createWorkspaceModal = useCreateWorkspaceModal();
   const [membersModalOpened, { open: openMembersModal, close: closeMembersModal }] =
     useDisclosure(false);
   const [membersWorkspaceId, setMembersWorkspaceId] = useState<string | null>(null);
@@ -327,31 +330,17 @@ export function DashboardPage() {
 
   return (
     <div className={pageStyles.page}>
-      <header className={pageStyles.topbar}>
-        <div className={pageStyles.titleBlock}>
-          <h1 className={pageStyles.pageTitle}>Dashboard</h1>
-          <p className={pageStyles.pageSubtitle}>Tüm dokümanlarınız</p>
-        </div>
-        <div className={pageStyles.topbarActions}>
-          <TextInput
-            className={pageStyles.search}
-            classNames={{ input: pageStyles.searchControl }}
-            placeholder="Ara..."
-            value={search}
-            onChange={(e) => setSearch(e.currentTarget.value)}
-            leftSection={<IconSearch size={16} color="rgba(255,255,255,0.35)" />}
-          />
-          <Button className={pageStyles.newDocBtn} leftSection={<span>+</span>} onClick={openCreate}>
-            Yeni Doküman
-          </Button>
-        </div>
-      </header>
-
+      <DashboardHero
+        search={search}
+        onSearchChange={setSearch}
+        onNewWorkspace={createWorkspaceModal.open}
+        onNewDocument={openCreate}
+      />
       <div className={pageStyles.statsRow}>
         <DashboardStatCard value={stats.total} label="Toplam Doküman" accent="blue" />
-        <DashboardStatCard value={stats.live} label="Canlı / Aktif" accent="green" />
+        <DashboardStatCard value={stats.live} label="Canlı / Aktif" accent="emerald" />
         <DashboardStatCard value={stats.week} label="Bu Hafta Düzenlendi" accent="orange" />
-        <DashboardStatCard value={teamStatDisplay} label="Ekip Üyesi" accent="white" />
+        <DashboardStatCard value={teamStatDisplay} label="Ekip Üyesi" accent="purple" />
       </div>
 
       {listQuery.isLoading ? (
@@ -387,6 +376,13 @@ export function DashboardPage() {
           }}
         />
       </Modal>
+
+      <CreateWorkspaceModal
+        opened={createWorkspaceModal.opened}
+        loading={createWorkspaceModal.isPending}
+        onClose={createWorkspaceModal.close}
+        onSubmit={createWorkspaceModal.handleSubmit}
+      />
     </div>
   );
 }

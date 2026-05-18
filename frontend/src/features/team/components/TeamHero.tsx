@@ -1,5 +1,6 @@
 import { Button, Group } from '@mantine/core';
 import { IconPlus, IconUserPlus } from '@tabler/icons-react';
+import heroStyles from '../../../shared/styles/premium-hero.module.css';
 import styles from '../pages/TeamPage.module.css';
 
 type TeamHeroProps = {
@@ -10,14 +11,18 @@ type TeamHeroProps = {
 
 export function TeamHero({ canInvite, onInvite, onNewWorkspace }: TeamHeroProps) {
   return (
-    <section className={styles.hero}>
-      <div>
-        <h1 className={styles.heroTitle}>Ekibim</h1>
-        <p className={styles.heroDescription}>
+    <section className={heroStyles.premiumHero}>
+      <div className={heroStyles.premiumHeroContent}>
+        <h1 className={heroStyles.premiumHeroTitle}>Ekibim</h1>
+        <p className={heroStyles.premiumHeroDescription}>
           Çalışma alanlarınızı, ekip üyelerinizi ve işbirliği rollerinizi yönetin.
         </p>
+        <p className={heroStyles.premiumHeroInfoNote}>
+          Çalışma alanı sahipleri üyeleri davet edebilir, rolleri yönetebilir ve
+          doküman erişimlerini düzenleyebilir.
+        </p>
       </div>
-      <Group className={styles.heroActions} gap={14}>
+      <Group className={heroStyles.premiumHeroActions} gap={12}>
         <Button
           className={styles.heroPrimaryBtn}
           leftSection={<IconUserPlus size={16} />}

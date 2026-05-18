@@ -2,10 +2,7 @@ import {
   Anchor,
   Button,
   PasswordInput,
-  Stack,
-  Text,
   TextInput,
-  Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useMutation } from '@tanstack/react-query';
@@ -13,18 +10,24 @@ import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { AppCard } from '../../../components/ui/AppCard';
 import { apiClient } from '../../../shared/api/client';
 import type { AuthResponse } from '../../../shared/api/contracts';
 import { getApiErrorMessage } from '../../../shared/api/errors';
 import { useAuthStore } from '../../../store/auth.store';
+import styles from './LoginPage.module.css';
 
 const loginSchema = z.object({
-  email: z.string().trim().email('Enter a valid email address.'),
-  password: z.string().min(8, 'Password must be at least 8 characters.'),
+  email: z.string().trim().email('Geçerli bir e-posta adresi girin.'),
+  password: z.string().min(8, 'Şifre en az 8 karakter olmalıdır.'),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
+
+const fieldClassNames = {
+  label: styles.fieldLabel,
+  input: styles.fieldInput,
+  error: styles.fieldError,
+};
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -49,15 +52,15 @@ export function LoginPage() {
       });
       notifications.show({
         color: 'teal',
-        title: 'Signed in',
-        message: `Welcome back, ${data.user.fullName}.`,
+        title: 'Giriş başarılı',
+        message: `Hoş geldiniz, ${data.user.fullName}.`,
       });
       navigate('/dashboard', { replace: true });
     },
     onError: (error) => {
       notifications.show({
         color: 'red',
-        title: 'Sign in failed',
+        title: 'Giriş başarısız',
         message: getApiErrorMessage(error),
       });
     },
@@ -68,46 +71,64 @@ export function LoginPage() {
   });
 
   return (
-    <Stack align="center" justify="center" mih="100vh" p="lg">
-      <AppCard w={420} p="xl" radius="lg">
-        <Stack>
-          <Title order={2}>Welcome back</Title>
-          <Text c="dimmed">Sign in to continue collaborating in FlowDocs.</Text>
+    <div className={styles.page}>
+      <div className={styles.card}>
+        <div className={styles.logoBadge}>
+          <img
+            src={`${import.meta.env.BASE_URL}flowdocs_icon.svg`}
+            alt=""
+            width={24}
+            height={24}
+            className={styles.logoMark}
+            decoding="async"
+          />
+          <span className={styles.logoText}>FlowDocs</span>
+        </div>
 
-          <form onSubmit={onSubmit}>
-            <Stack>
-              <TextInput
-                label="Email"
-                placeholder="team@flowdocs.app"
-                {...form.register('email')}
-                error={form.formState.errors.email?.message}
-              />
+        <h1 className={styles.title}>Tekrar hoş geldiniz</h1>
+        <p className={styles.subtitle}>
+          FlowDocs üzerinde işbirliğine devam etmek için giriş yapın.
+        </p>
 
-              <PasswordInput
-                label="Password"
-                placeholder="********"
-                {...form.register('password')}
-                error={form.formState.errors.password?.message}
-              />
+        <form onSubmit={onSubmit}>
+          <div className={styles.formStack}>
+            <TextInput
+              label="E-posta"
+              placeholder="ornek@flowdocs.app"
+              classNames={fieldClassNames}
+              {...form.register('email')}
+              error={form.formState.errors.email?.message}
+            />
 
-              <Button
-                fullWidth
-                type="submit"
-                loading={loginMutation.isPending}
-              >
-                Sign in
-              </Button>
-            </Stack>
-          </form>
+            <PasswordInput
+              label="Şifre"
+              placeholder="••••••••"
+              classNames={{
+                ...fieldClassNames,
+                visibilityToggle: styles.visibilityToggle,
+              }}
+              {...form.register('password')}
+              error={form.formState.errors.password?.message}
+            />
 
-          <Text size="sm" c="dimmed">
-            No account yet?{' '}
-            <Anchor component={Link} to="/register">
-              Create one
-            </Anchor>
-          </Text>
-        </Stack>
-      </AppCard>
-    </Stack>
+            <Button
+              className={styles.submitBtn}
+              fullWidth
+              type="submit"
+              loading={loginMutation.isPending}
+            >
+              Giriş Yap
+            </Button>
+          </div>
+        </form>
+
+        <p className={styles.footer}>
+          Henüz hesabınız yok mu?{' '}
+          <Anchor component={Link} to="/register" className={styles.registerLink}>
+            Hesap oluştur
+          </Anchor>
+        </p>
+      </div>
+    </div>
   );
 }
