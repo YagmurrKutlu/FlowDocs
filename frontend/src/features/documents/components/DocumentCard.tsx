@@ -2,6 +2,7 @@ import { ActionIcon, Badge, Group, Stack, Text, Tooltip } from '@mantine/core';
 import { IconChevronRight, IconTrash } from '@tabler/icons-react';
 import { Link } from 'react-router-dom';
 import { AppCard } from '../../../components/ui/AppCard';
+import { DocumentFavoriteButton } from './DocumentFavoriteButton';
 import type { DocumentListItem } from '../types/document.types';
 
 function formatUpdatedAt(iso: string): string {
@@ -65,6 +66,10 @@ export function DocumentCard({
             </Group>
           </Stack>
           <Group gap="xs" wrap="nowrap">
+            <DocumentFavoriteButton
+              documentId={document.id}
+              isFavorite={document.isFavorite ?? false}
+            />
             {onDelete ? (
               <Tooltip label="Çöp Kutusuna Taşı" withArrow position="top">
                 <ActionIcon

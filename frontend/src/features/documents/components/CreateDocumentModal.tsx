@@ -16,8 +16,8 @@ import { getApiErrorMessage } from '../../../shared/api/errors';
 import { useCreateDocumentMutation } from '../hooks/useDocumentsQueries';
 
 const schema = z.object({
-  workspaceId: z.string().min(1, 'Select a workspace.'),
-  title: z.string().trim().min(2, 'Title must be at least 2 characters.'),
+  workspaceId: z.string().min(1, 'Çalışma alanı seçin.'),
+  title: z.string().trim().min(2, 'Başlık en az 2 karakter olmalıdır.'),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -79,8 +79,8 @@ export function CreateDocumentModal({
         onSuccess: (data) => {
           notifications.show({
             color: 'teal',
-            title: 'Document created',
-            message: `"${data.document.title}" is ready.`,
+            title: 'Doküman oluşturuldu',
+            message: `"${data.document.title}" hazır.`,
           });
           onCreated(data.document.id);
           onClose();
@@ -88,7 +88,7 @@ export function CreateDocumentModal({
         onError: (error) => {
           notifications.show({
             color: 'red',
-            title: 'Could not create document',
+            title: 'Doküman oluşturulamadı',
             message: getApiErrorMessage(error),
           });
         },
@@ -100,25 +100,25 @@ export function CreateDocumentModal({
     <form onSubmit={onSubmit}>
       <Stack>
         {workspacesQuery.isLoading ? (
-          <TextInput label="Workspace" disabled placeholder="Loading workspaces…" />
+          <TextInput label="Çalışma Alanı" disabled placeholder="Çalışma alanları yükleniyor…" />
         ) : workspacesQuery.isError ? (
           <TextInput
-            label="Workspace"
+            label="Çalışma Alanı"
             disabled
             description={getApiErrorMessage(workspacesQuery.error)}
-            placeholder="Failed to load workspaces"
+            placeholder="Çalışma alanları yüklenemedi"
           />
         ) : workspaces.length === 0 ? (
           <TextInput
-            label="Workspace"
+            label="Çalışma Alanı"
             disabled
-            description="Create a workspace from the dashboard first."
-            placeholder="No workspaces"
+            description="Önce bir çalışma alanı oluşturun."
+            placeholder="Çalışma alanı yok"
           />
         ) : (
           <Select
-            label="Workspace"
-            placeholder="Choose workspace"
+            label="Çalışma Alanı"
+            placeholder="Çalışma alanı seç"
             data={workspaces.map((w) => ({
               value: w.id,
               label: `${w.name} (${w.slug})`,
@@ -129,13 +129,13 @@ export function CreateDocumentModal({
             }
             error={form.formState.errors.workspaceId?.message}
             searchable
-            nothingFoundMessage="No workspace"
+            nothingFoundMessage="Çalışma alanı bulunamadı"
           />
         )}
 
         <TextInput
-          label="Title"
-          placeholder="Product brief, meeting notes…"
+          label="Başlık"
+          placeholder="Ürün özeti, toplantı notları…"
           {...form.register('title')}
           error={form.formState.errors.title?.message}
         />
@@ -145,7 +145,7 @@ export function CreateDocumentModal({
           loading={createMutation.isPending}
           disabled={workspaces.length === 0}
         >
-          Create document
+          Doküman oluştur
         </Button>
       </Stack>
     </form>

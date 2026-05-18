@@ -122,7 +122,21 @@ export class DocumentsService {
       },
     });
 
-    return { documents };
+    const favoriteRows = await this.prisma.documentFavorite.findMany({
+      where: {
+        userId,
+        documentId: { in: documents.map((d) => d.id) },
+      },
+      select: { documentId: true },
+    });
+    const favoriteIds = new Set(favoriteRows.map((f) => f.documentId));
+
+    return {
+      documents: documents.map((doc) => ({
+        ...doc,
+        isFavorite: favoriteIds.has(doc.id),
+      })),
+    };
   }
 
   async assertDocumentExportAccess(userId: string, documentId: string): Promise<string> {

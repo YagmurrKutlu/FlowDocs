@@ -19,7 +19,7 @@ export function sidebarNavHref(key: SidebarNavKey): string {
     case 'documents-shared':
       return '/documents?view=shared';
     case 'documents-favorites':
-      return '/documents?view=favorites';
+      return '/favorites';
     case 'documents-trash':
       return '/trash';
     case 'team':
@@ -48,7 +48,7 @@ export function isSidebarNavActive(
     case 'documents-shared':
       return loc.pathname.startsWith('/documents') && view === 'shared';
     case 'documents-favorites':
-      return loc.pathname.startsWith('/documents') && view === 'favorites';
+      return loc.pathname === '/favorites';
     case 'documents-trash':
       return loc.pathname === '/trash';
     case 'settings':

@@ -13,6 +13,7 @@ import { ProfileModule } from './profile/profile.module';
 import { SettingsModule } from './settings/settings.module';
 import { TeamModule } from './team/team.module';
 import { TrashModule } from './trash/trash.module';
+import { FavoritesModule } from './favorites/favorites.module';
 import { HealthModule } from './health/health.module';
 import { CommonModule } from './common/common.module';
 import { ConfigModule } from './config/config.module';
@@ -52,6 +53,7 @@ import { envValidationSchema } from './config/env/env.validation';
     SettingsModule,
     TeamModule,
     TrashModule,
+    FavoritesModule,
     HealthModule,
     CommonModule,
     ConfigModule,

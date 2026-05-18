@@ -7,6 +7,7 @@ import { DocumentsPage } from '../../features/documents/pages/DocumentsPage';
 import { ProfilePage } from '../../features/profile/pages/ProfilePage';
 import { SettingsPage } from '../../features/settings/pages/SettingsPage';
 import { TeamPage } from '../../features/team/pages/TeamPage';
+import { FavoritesPage } from '../../features/favorites/pages/FavoritesPage';
 import { TrashPage } from '../../features/trash/pages/TrashPage';
 import { GlobalLayout } from '../../layouts/GlobalLayout';
 import { ProtectedRoute, PublicRoute } from './route-guards';
@@ -28,6 +29,7 @@ export function AppRouter() {
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/team" element={<TeamPage />} />
+            <Route path="/favorites" element={<FavoritesPage />} />
             <Route path="/trash" element={<TrashPage />} />
           </Route>
         </Route>

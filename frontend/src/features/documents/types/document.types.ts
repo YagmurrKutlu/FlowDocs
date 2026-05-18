@@ -5,6 +5,7 @@ export interface DocumentListItem {
   workspaceId: string;
   updatedAt: string;
   currentVersion: number;
+  isFavorite?: boolean;
 }
 
 export interface DocumentListResponse {

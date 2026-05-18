@@ -1,6 +1,7 @@
 import { Text } from '@mantine/core';
 import { Link } from 'react-router-dom';
 import type { DocumentListItem } from '../../documents/types/document.types';
+import { DocumentFavoriteButton } from '../../documents/components/DocumentFavoriteButton';
 import { AvatarStack, type AvatarStackItem } from './AvatarStack';
 import styles from './DashboardDocumentCard.module.css';
 
@@ -86,6 +87,12 @@ export function DashboardDocumentCard({ document: doc, index }: DashboardDocumen
     <Link to={`/documents/${doc.id}`} className={styles.link}>
       <article className={styles.card}>
         <div className={`${styles.accent} ${ACCENT_CSS[accent]}`} />
+        <div className={styles.favoriteBtnWrap}>
+          <DocumentFavoriteButton
+            documentId={doc.id}
+            isFavorite={doc.isFavorite ?? false}
+          />
+        </div>
         <div className={styles.body}>
           <div className={styles.emojiRow}>
             <span className={styles.emoji} aria-hidden>

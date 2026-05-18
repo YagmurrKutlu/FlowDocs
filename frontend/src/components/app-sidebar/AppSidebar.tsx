@@ -14,6 +14,7 @@ import { useMemo } from 'react';
 import { apiClient } from '../../shared/api/client';
 import type { WorkspaceListResponse } from '../../shared/api/contracts';
 import { useDocumentsListQuery } from '../../features/documents/hooks/useDocumentsQueries';
+import { useFavoritesSummaryQuery } from '../../features/favorites/hooks/useFavoritesQueries';
 import { useTrashSummaryQuery } from '../../features/trash/hooks/useTrashQueries';
 import { useAuthStore } from '../../store/auth.store';
 import { CollapseButton } from './CollapseButton';
@@ -46,8 +47,10 @@ export function AppSidebar({ collapsed, onToggleCollapse }: AppSidebarProps) {
   const user = useAuthStore((state) => state.user);
   const listQuery = useDocumentsListQuery();
   const trashSummaryQuery = useTrashSummaryQuery();
+  const favoritesSummaryQuery = useFavoritesSummaryQuery();
   const documents = listQuery.data?.documents ?? [];
   const trashBadge = trashSummaryQuery.data?.deletedDocumentCount ?? 0;
+  const favoritesBadge = favoritesSummaryQuery.data?.favoriteCount ?? 0;
 
   const liveBadge = useMemo(
     () => documents.filter((d) => isLiveRecently(d.updatedAt, 72)).length,
@@ -131,6 +134,7 @@ export function AppSidebar({ collapsed, onToggleCollapse }: AppSidebarProps) {
                   label="Favoriler"
                   icon={IconStar}
                   collapsed={collapsed}
+                  badge={favoritesBadge > 0 ? favoritesBadge : null}
                 />
                 <SidebarNavItem
                   navKey="documents-trash"

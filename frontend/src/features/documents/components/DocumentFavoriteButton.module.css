@@ -1,0 +1,24 @@
+.starBtn {
+  color: rgba(251, 191, 36, 0.55) !important;
+  transition:
+    color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease,
+    background-color 160ms ease;
+}
+
+.starBtn:hover:not(:disabled) {
+  color: #fbbf24 !important;
+  background: rgba(251, 191, 36, 0.12) !important;
+  box-shadow: 0 0 14px rgba(251, 191, 36, 0.45);
+  transform: scale(1.06);
+}
+
+.starBtnFilled {
+  color: #fbbf24 !important;
+}
+
+.starBtnFilled:hover:not(:disabled) {
+  color: #fcd34d !important;
+  box-shadow: 0 0 16px rgba(251, 191, 36, 0.55);
+}

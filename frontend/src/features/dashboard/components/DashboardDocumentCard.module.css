@@ -49,6 +49,13 @@
   background: linear-gradient(90deg, #dc2626, #f87171);
 }
 
+.favoriteBtnWrap {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+}
+
 .body {
   padding: 14px 16px 16px;
 }
