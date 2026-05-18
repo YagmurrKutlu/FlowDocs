@@ -1,4 +1,4 @@
-import { Button, Select, Skeleton } from '@mantine/core';
+import { Button, Modal, Select, Skeleton, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
   IconBolt,
@@ -8,6 +8,7 @@ import {
   IconFileText,
   IconKey,
   IconLink,
+  IconLogout,
   IconMessage,
   IconPencil,
   IconShare,
@@ -15,8 +16,9 @@ import {
   IconUpload,
   IconUserPlus,
 } from '@tabler/icons-react';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { logoutCurrentDevice } from '../../../shared/auth/logout';
 import { ProfileEditModal } from '../components/ProfileEditModal';
 import {
   useMyProfileQuery,
@@ -121,6 +123,13 @@ function ProfileCard({
 export function ProfilePage() {
   const navigate = useNavigate();
   const [editOpen, setEditOpen] = useState(false);
+  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
+
+  const handleConfirmLogout = useCallback(() => {
+    logoutCurrentDevice();
+    setLogoutModalOpen(false);
+    navigate('/login', { replace: true });
+  }, [navigate]);
   const profileQuery = useMyProfileQuery();
   const updateProfile = useUpdateProfileMutation();
   const updateAppearance = useUpdateProfileAppearanceMutation();
@@ -212,6 +221,14 @@ export function ProfilePage() {
                   onClick={() => setEditOpen(true)}
                 >
                   Profili Düzenle
+                </Button>
+                <Button
+                  className={styles.logoutBtn}
+                  variant="default"
+                  leftSection={<IconLogout size={16} />}
+                  onClick={() => setLogoutModalOpen(true)}
+                >
+                  Çıkış Yap
                 </Button>
                 <Button
                   className={styles.glassBtn}
@@ -577,6 +594,26 @@ export function ProfilePage() {
             </ProfileCard>
         </div>
       </div>
+
+      <Modal
+        opened={logoutModalOpen}
+        onClose={() => setLogoutModalOpen(false)}
+        title="Çıkış yapılsın mı?"
+        centered
+        overlayProps={{ backgroundOpacity: 0.55, blur: 4 }}
+      >
+        <Text size="sm" c="dimmed" mb="lg">
+          Bu cihazdaki oturumunuz kapatılacak.
+        </Text>
+        <div className={styles.logoutModalActions}>
+          <Button variant="default" onClick={() => setLogoutModalOpen(false)}>
+            İptal
+          </Button>
+          <Button className={styles.logoutBtn} onClick={handleConfirmLogout}>
+            Çıkış Yap
+          </Button>
+        </div>
+      </Modal>
 
       <ProfileEditModal
         opened={editOpen}

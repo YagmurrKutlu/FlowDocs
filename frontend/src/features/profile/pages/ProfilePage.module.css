@@ -113,6 +113,31 @@
   background: var(--ghost-btn-hover) !important;
 }
 
+.logoutBtn {
+  background: rgba(255, 77, 125, 0.1) !important;
+  border: 1px solid rgba(255, 77, 125, 0.32) !important;
+  color: #fca5a5 !important;
+  font-weight: 600 !important;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease !important;
+}
+
+.logoutBtn:hover {
+  background: rgba(255, 77, 125, 0.18) !important;
+  border-color: rgba(255, 77, 125, 0.48) !important;
+  color: #fecaca !important;
+  box-shadow: 0 0 16px rgba(255, 77, 125, 0.12) !important;
+}
+
+.logoutModalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .heroInfo {
   margin-top: 18px;
 }
